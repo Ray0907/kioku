@@ -24,7 +24,7 @@ for p in h.rglob('*.jsonl'):
  p.write_text(p.read_text().replace('/work/demo',str(h/'work/demo')))
 PY
 unset KIOKU_CLAUDE_DIR KIOKU_CODEX_DIR KIOKU_PI_DIR KIOKU_GROK_DIR KIOKU_OPENCODE_DB KIOKU_CURSOR_DIR XDG_DATA_HOME CLAUDE_CONFIG_DIR CODEX_HOME PI_CODING_AGENT_DIR
-export HOME="$H" KIOKU_INDEX="$H/index/index.db" KIOKU_THEME=light TERM=xterm-256color
+export HOME="$H" KIOKU_INDEX="$H/index/index.db" KIOKU_THEME=light TERM=xterm-256color COLORTERM=truecolor
 
 start=$SECONDS; out=$("$BIN" index --rebuild 2>&1); rc=$?
 if ((rc==0)) && grep -q 'claude: 5 messages' <<<"$out" && grep -q 'codex: 5 messages' <<<"$out" && grep -q 'pi: 5 messages' <<<"$out" && grep -q '3 files, 3 changed, 0 skipped' <<<"$out"; then record 'Index Claude/Codex/Pi real-format fixtures' PASS $((SECONDS-start)) "$out"; else record 'Index Claude/Codex/Pi real-format fixtures' FAIL $((SECONDS-start)) "$out"; fi
@@ -771,6 +771,7 @@ if ((grok_ok)); then record 'Grok TUI: harness cycling and cd-only Enter' PASS $
 tmux set-option -g remain-on-exit on 2>/dev/null || :
 export KIOKU_INDEX="$H/index/tui.db"
 tmux new-session -d -x 120 -y 40 -s "he2e-$$" "cd '$ROOT' && HOME='$HOME' KIOKU_INDEX='$KIOKU_INDEX' KIOKU_THEME=light TERM=xterm-256color exec ./kioku snapshot" 2>/dev/null
+tmux set-option -t "he2e-$$" remain-on-exit on 2>/dev/null
 sleep 1
 tmux capture-pane -t "he2e-$$" -p > "$SCREENS/tui-start.txt" 2>&1; tmux capture-pane -t "he2e-$$" -ep > "$SCREENS/tui-start-ansi.txt" 2>&1
 start=$SECONDS; if grep -q 'SNAPSHOT' "$SCREENS/tui-start.txt"; then record 'TUI starts and displays matching hit' PASS $((SECONDS-start)) ''; else record 'TUI starts and displays matching hit' FAIL $((SECONDS-start)) "$(<"$SCREENS/tui-start.txt")"; fi
