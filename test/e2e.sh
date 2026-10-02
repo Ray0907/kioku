@@ -376,7 +376,11 @@ meta_only=home/'.codex/sessions/meta-only.jsonl'
 meta_only.write_text(json.dumps({'type':'session_meta','payload':{'id':'meta-only'}})+'\n')
 before=fingerprints()
 with sqlite3.connect(home/'index.db') as db:
+ # Stock SQLite lacks cjk; detach FTS triggers while ALTER TABLE validates the schema.
+ triggers=db.execute("SELECT name,sql FROM sqlite_master WHERE type='trigger' AND name GLOB 'messages_*'").fetchall()
+ for name,_ in triggers: db.execute(f'DROP TRIGGER "{name}"')
  db.execute('ALTER TABLE messages DROP COLUMN self')
+ for _,sql in triggers: db.execute(sql)
  db.execute('UPDATE meta SET schema_version=2')
  old_rows=db.execute('SELECT id,session_uid,idx,ts,role,text FROM messages ORDER BY id').fetchall()
  old_sources=db.execute('SELECT * FROM sources ORDER BY path').fetchall()
