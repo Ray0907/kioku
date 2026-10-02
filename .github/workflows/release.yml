@@ -15,7 +15,7 @@ jobs:
           - runner: macos-14
             goos: darwin
             goarch: arm64
-          - runner: macos-13
+          - runner: macos-14
             goos: darwin
             goarch: amd64
           - runner: ubuntu-24.04
@@ -39,7 +39,8 @@ jobs:
         run: |
           if [ "$GOOS" = darwin ]; then
             export MACOSX_DEPLOYMENT_TARGET=12.0
-            export CC="clang -mmacosx-version-min=12.0"
+            arch=arm64; [ "$GOARCH" = amd64 ] && arch=x86_64
+            export CC="clang -arch $arch -mmacosx-version-min=12.0"
             export CGO_LDFLAGS="-mmacosx-version-min=12.0"
           fi
           go build -trimpath -tags sqlite_fts5 -ldflags "-s -w -X main.version=$GITHUB_REF_NAME" -o kioku .
