@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.2.0 - 2026-10-03
 
 ### Added
 - Linux support (arm64 and amd64), with `xdg-open` for projects and `wl-copy`/`xclip`/`xsel` for clipboard access.
