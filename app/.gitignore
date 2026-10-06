@@ -1,0 +1,9 @@
+build/
+DerivedData/
+*.xcresult/
+Kioku.xcodeproj/xcuserdata/
+Kioku.xcodeproj/project.xcworkspace/xcuserdata/
+test/screens/
+test/e2e-report.md
+__pycache__/
+.DS_Store

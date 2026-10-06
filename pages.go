@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf16"
 	"unicode/utf8"
 
 	"github.com/charmbracelet/x/ansi"
@@ -95,13 +96,40 @@ func compactSnippet(text, q string) string {
 	return ansi.Truncate(s, 160, "…")
 }
 
+// UTF-16 ranges use the TUI's existing display matcher. Native clients only
+// paint these ranges; all query interpretation remains in the Go engine.
+type highlightRange struct {
+	Location int `json:"location"`
+	Length   int `json:"length"`
+}
+
+func highlightRanges(text, query string) []highlightRange {
+	runes := []rune(text)
+	offsets := make([]int, len(runes)+1)
+	for i, r := range runes {
+		offsets[i+1] = offsets[i] + len(utf16.Encode([]rune{r}))
+	}
+	var out []highlightRange
+	for _, t := range terms(query) {
+		if t.Negative {
+			continue
+		}
+		length := len([]rune(t.Word))
+		for _, at := range positions(runes, t.Word) {
+			out = append(out, highlightRange{offsets[at], offsets[at+length] - offsets[at]})
+		}
+	}
+	return out
+}
+
 type compactHit struct {
-	Ref     string `json:"ref"`
-	Harness string `json:"harness"`
-	Project string `json:"project"`
-	Age     string `json:"age"`
-	Role    string `json:"role"`
-	Snippet string `json:"snippet"`
+	Ref        string           `json:"ref"`
+	Harness    string           `json:"harness"`
+	Project    string           `json:"project"`
+	Age        string           `json:"age"`
+	Role       string           `json:"role"`
+	Snippet    string           `json:"snippet"`
+	Highlights []highlightRange `json:"highlights,omitempty"`
 }
 type hitPage struct {
 	Shown         int          `json:"shown"`
@@ -117,15 +145,16 @@ type roleCounts struct {
 	Tool int `json:"tool"`
 }
 type compactSession struct {
-	Ref     string     `json:"ref"`
-	Harness string     `json:"harness"`
-	Project string     `json:"project"`
-	Age     string     `json:"age"`
-	Hits    int        `json:"hits"`
-	Roles   roleCounts `json:"roles"`
-	BestRef string     `json:"best_ref"`
-	Best    string     `json:"best"`
-	Topic   string     `json:"topic"`
+	Ref        string           `json:"ref"`
+	Harness    string           `json:"harness"`
+	Project    string           `json:"project"`
+	Age        string           `json:"age"`
+	Hits       int              `json:"hits"`
+	Roles      roleCounts       `json:"roles"`
+	BestRef    string           `json:"best_ref"`
+	Best       string           `json:"best"`
+	Topic      string           `json:"topic"`
+	Highlights []highlightRange `json:"highlights,omitempty"`
 }
 type sessionPage struct {
 	Shown        int              `json:"shown"`
@@ -136,7 +165,7 @@ type sessionPage struct {
 }
 
 func shellQuote(s string) string {
-	if strings.ContainsAny(s, "$`\\\"!\n\r") {
+	if strings.ContainsAny(s, "$`\\\"!") || strings.IndexFunc(s, func(r rune) bool { return !strconv.IsPrint(r) }) >= 0 {
 		return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 	}
 	return strconv.Quote(s)
@@ -330,7 +359,8 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitP
 		}
 	}
 	for _, h := range matches {
-		p.Hits = append(p.Hits, compactHit{shortID(h.UID) + ":" + strconv.Itoa(h.Index), h.Harness, displayInline(h.Project), age(h.TS), h.Role, compactSnippet(h.Text, q)})
+		snippet := compactSnippet(h.Text, q)
+		p.Hits = append(p.Hits, compactHit{shortID(h.UID) + ":" + strconv.Itoa(h.Index), h.Harness, displayInline(h.Project), age(h.TS), h.Role, snippet, highlightRanges(snippet, q)})
 	}
 	p.Shown = len(p.Hits)
 	p.NextCursor = nextCursor(k, offset, p.Shown, p.Total)
@@ -424,7 +454,7 @@ func compactSessions(ctx context.Context, db *sql.DB, k pageKey, offset int) (se
 				e = topicErr
 				break
 			}
-			p.Sessions = append(p.Sessions, compactSession{Ref: shortID(id), Harness: harness, Project: displayInline(project), Age: age(ts), Hits: hits, Roles: roles, BestRef: shortID(id) + ":" + strconv.Itoa(idx), Best: compactSnippet(text, q), Topic: topic})
+			p.Sessions = append(p.Sessions, compactSession{Ref: shortID(id), Harness: harness, Project: displayInline(project), Age: age(ts), Hits: hits, Roles: roles, BestRef: shortID(id) + ":" + strconv.Itoa(idx), Best: compactSnippet(text, q), Topic: topic, Highlights: highlightRanges(compactSnippet(text, q), q)})
 		}
 		if e == nil {
 			e = rows.Err()
@@ -480,19 +510,23 @@ func showWindow(text, q string) string {
 }
 
 type showMessage struct {
-	Time string `json:"time"`
-	Role string `json:"role"`
-	Text string `json:"text"`
-	Hit  bool   `json:"hit"`
-	Full bool   `json:"full,omitempty"`
+	Time       string           `json:"time"`
+	Role       string           `json:"role"`
+	Text       string           `json:"text"`
+	Hit        bool             `json:"hit"`
+	Full       bool             `json:"full,omitempty"`
+	Highlights []highlightRange `json:"highlights,omitempty"`
+	Matches    bool             `json:"matches"`
 }
 type showPage struct {
 	Harness      string        `json:"harness"`
 	Project      string        `json:"project"`
+	Model        string        `json:"model,omitempty"`
 	Topic        string        `json:"topic"`
 	CWD          string        `json:"cwd"`
 	Date         string        `json:"date"`
 	ResumeCmd    string        `json:"resume_cmd"`
+	ResumeArgv   []string      `json:"resume_argv"`
 	Shown        int           `json:"shown"`
 	Total        int           `json:"total"`
 	Start        int           `json:"start"`
@@ -507,7 +541,7 @@ func renderShow(p showPage, asJSON bool) error {
 	if asJSON {
 		return writeJSON(p)
 	}
-	fmt.Fprintf(output, "%s · %s · %s · %s\nresume: %s\ntopic: %s\nmessages %d–%d of %d", p.Harness, p.Project, p.CWD, p.Date, displayInline(p.ResumeCmd), p.Topic, p.Start, p.End, p.SessionTotal)
+	fmt.Fprintf(output, "%s · %s · %s · %s\nresume: %s\ntopic: %s\nmessages %d–%d of %d", p.Harness, p.Project, displayInline(p.CWD), p.Date, displayInline(p.ResumeCmd), p.Topic, p.Start, p.End, p.SessionTotal)
 	if p.HitIndex != nil {
 		fmt.Fprintf(output, " · hit %d", *p.HitIndex)
 	}
@@ -588,10 +622,10 @@ func compactShow(ctx context.Context, db *sql.DB, k pageKey, offset int) (showPa
 	}
 	uid := found[0]
 	var nativeID, path string
-	if e = db.QueryRowContext(ctx, `SELECT harness,native_id,project,cwd,path FROM sessions WHERE uid=?`, uid).Scan(&p.Harness, &nativeID, &p.Project, &p.CWD, &path); e != nil {
+	if e = db.QueryRowContext(ctx, `SELECT harness,native_id,project,cwd,path,coalesce(model,'') FROM sessions WHERE uid=?`, uid).Scan(&p.Harness, &nativeID, &p.Project, &p.CWD, &path, &p.Model); e != nil {
 		return p, e
 	}
-	p.Project, p.CWD = displayInline(p.Project), displayInline(p.CWD)
+	p.Project = displayInline(p.Project)
 	p.Topic, e = sessionTopic(ctx, db, uid)
 	if e != nil {
 		return p, e
@@ -639,15 +673,23 @@ func compactShow(ctx context.Context, db *sql.DB, k pageKey, offset int) (showPa
 		p.Date = ts[:10]
 	}
 	p.ResumeCmd = resumeCmd(p.Harness, nativeID, path, p.CWD)
+	p.ResumeArgv = resumeArgv(p.Harness, nativeID, path, p.CWD)
 	if offset < p.Total {
-		msgs, err := db.QueryContext(ctx, `SELECT idx,ts,role,text FROM messages WHERE session_uid=? AND idx>=? AND idx<? ORDER BY idx LIMIT ?`, uid, start+offset, end, k.Limit)
+		matched, args := "0", []any{}
+		if match := toFTS(k.Query); match != "" {
+			matched = `1 ` + selfFilter(k.IncludeSelf) + `AND EXISTS(SELECT 1 FROM messages_fts WHERE messages_fts.rowid=m.id AND messages_fts MATCH ?)`
+			args = append(args, match)
+		}
+		args = append(args, uid, start+offset, end, k.Limit)
+		msgs, err := db.QueryContext(ctx, `SELECT idx,ts,role,text,`+matched+` FROM messages m WHERE session_uid=? AND idx>=? AND idx<? ORDER BY idx LIMIT ?`, args...)
 		if err != nil {
 			return p, err
 		}
 		for msgs.Next() {
 			var idx int
 			var ts, role, text string
-			if err = msgs.Scan(&idx, &ts, &role, &text); err != nil {
+			var matches bool
+			if err = msgs.Scan(&idx, &ts, &role, &text, &matches); err != nil {
 				break
 			}
 			hm := "??:??"
@@ -664,7 +706,7 @@ func compactShow(ctx context.Context, db *sql.DB, k pageKey, offset int) (showPa
 			default:
 				visible = ansi.Truncate(displayInline(text), 400, "…")
 			}
-			p.Messages = append(p.Messages, showMessage{Time: hm, Role: role, Text: visible, Hit: idx == selected, Full: fullHit})
+			p.Messages = append(p.Messages, showMessage{Time: hm, Role: role, Text: visible, Hit: idx == selected, Full: fullHit, Highlights: highlightRanges(visible, k.Query), Matches: matches})
 		}
 		if err == nil {
 			err = msgs.Err()

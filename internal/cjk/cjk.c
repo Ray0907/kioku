@@ -269,6 +269,9 @@ __declspec(dllexport)
 #endif
 int sqlite3_cjk_init(sqlite3 *db, char **pzErr, const sqlite3_api_routines *pApiRoutines){
   SQLITE_EXTENSION_INIT2(pApiRoutines);
+  /* The driver's 5s lock policy is installed after auto-extensions. Apply it
+     before preparing SQL, or a concurrent writer looks like missing FTS5. */
+  sqlite3_busy_timeout(db, 5000);
   fts5_api *pApi = fts5ApiFromDb(db);
   if( !pApi ){
     *pzErr = sqlite3_mprintf("cjk: fts5 not available");
