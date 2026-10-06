@@ -52,7 +52,7 @@ assert sessions['total']==1 and sessions['sessions'][0]['harness']=='grok', sess
 assert page('--sessions','--harness','grok')['total']==1
 shown=page('show','grok-native-id','--all','--limit','20')
 assert shown['cwd']=='/work/grok demo' and shown['project']=='grok demo', shown
-assert shlex.split(shown['resume_cmd'])==['cd',shown['cwd']], shown
+assert shlex.split(shown['resume_cmd'])==shown['resume_argv']==['cd',shown['cwd']], shown
 assert [m['role'] for m in shown['messages']]==['user','asst','tool','tool','user','tool'], shown
 assert shown['messages'][2]['text']=='read_file · {"path":"groktea.txt"}', shown
 assert shown['messages'][3]['text']=='read_file · groktearesult: notes found.', shown
@@ -119,7 +119,7 @@ sessions=page('--sessions','--harness','cursor')
 assert sessions['total']==1 and sessions['sessions'][0]['harness']=='cursor', sessions
 shown=page('show',sid,'--all','--limit','20')
 assert shown['cwd']=='/work/cursor demo' and shown['project']=='cursor demo', shown
-assert shlex.split(shown['resume_cmd'])==['cursor-agent','--resume',sid], shown
+assert shlex.split(shown['resume_cmd'])==shown['resume_argv']==['cursor-agent','--resume',sid], shown
 assert [m['role'] for m in shown['messages']]==['user','asst','user'], shown
 assert [m['text'] for m in shown['messages']]==['cursorteatoken 魚池 日本語 한국어','cursoranswer  second line','cursorlasttoken final line'], shown
 with sqlite3.connect(env['KIOKU_INDEX']) as db:
@@ -226,7 +226,7 @@ sessions=page('--sessions','--harness','opencode')
 assert sessions['total']==2, sessions
 shown=page('show','oc-v1','--all','--limit','20')
 assert shown['cwd']=='/work/opencode demo' and shown['project']=='opencode demo', shown
-assert shlex.split(shown['resume_cmd'])==['opencode','--session','oc-v1'], shown
+assert shlex.split(shown['resume_cmd'])==shown['resume_argv']==['opencode','--session','oc-v1'], shown
 assert [m['text'] for m in shown['messages']]==['opencodevone 魚池','ocanswer','read · ocnotes.txt','bash · printf octooltoken','read · ocoutputtoken','octietoken'], shown
 assert [m['role'] for m in shown['messages']]==['user','asst','tool','tool','tool','asst'], shown
 v2=page('show','oc-both','--all','--limit','20')
@@ -590,6 +590,10 @@ rows=json.load(open(sys.argv[1]))['hits']; roles=[r['role'] for r in rows]
 conversation=[i for i,r in enumerate(roles) if r in ('user','asst')]; tools=[i for i,r in enumerate(roles) if r=='tool']
 assert conversation and tools, f'expected user/asst and tool hits, got {roles}'
 assert max(conversation)<min(tools), f'tool row ranked before conversation hits: {roles}'
+for row in rows:
+ text=row['snippet'].encode('utf-16-le'); assert row['highlights'], row
+ for r in row['highlights']:
+  assert text[2*r['location']:2*(r['location']+r['length'])].decode('utf-16-le').lower()=='rankprobe', row
 print(f'roles={roles}')
 PY
 then record 'Conversation hits precede matching tool row in JSON order' PASS 0 "$(<"$TMP/tool-order.txt")"; else record 'Conversation hits precede matching tool row in JSON order' FAIL 0 "$(<"$TMP/tool-order.err")"; fi
@@ -648,7 +652,7 @@ if [[ -s "$TMP/sessions-check.txt" ]]; then record '--sessions ranking/counts ag
 
 # show ref exposes context, resume metadata, hit marker, truncation, and --all cursor pages.
 show_ref=$(jq -r '.hits[] | select(.ref|endswith(":10")) | .ref' "$TMP/page-full.json")
-show_json=$("$BIN" show "$show_ref" --context 2 --json 2>&1); printf '%s\n' "$show_json" > "$TMP/show-context.json"
+show_json=$("$BIN" show "$show_ref" --context 2 --query PAGE_HIT_10 --json 2>&1); printf '%s\n' "$show_json" > "$TMP/show-context.json"
 show_text=$("$BIN" show "$show_ref" --context 2 2>&1)
 python3 - "$TMP/show-context.json" <<'PY' > "$TMP/show-check.txt" 2> "$TMP/show-error.txt"
 import json,sys
@@ -656,6 +660,10 @@ p=json.load(open(sys.argv[1])); selected=[m for m in p['messages'] if m['hit']]
 assert p['shown']==5 and p['total']==5 and len(selected)==1, f'expected selected hit and 2 context messages each side, got {p["shown"]}/{p["total"]}'
 assert 'PAGE_HIT_08' in p['messages'][0]['text'] and 'PAGE_HIT_12' in p['messages'][-1]['text'], 'context bounds incorrect'
 assert p['resume_cmd']=='claude --resume 66666666-6666-4666-8666-666666666666', p['resume_cmd']
+assert p['resume_argv']==['claude','--resume','66666666-6666-4666-8666-666666666666'], p
+assert selected[0]['matches'] and all(not m['matches'] for m in p['messages'] if not m['hit']), p
+text=selected[0]['text'].encode('utf-16-le')
+assert any(text[2*r['location']:2*(r['location']+r['length'])].decode('utf-16-le')=='PAGE_HIT_10' for r in selected[0]['highlights']), selected
 assert p['project']=='demo' and p['cwd'].endswith('/work/demo'), f'missing project/cwd: {p["project"]} {p["cwd"]}'
 assert len(selected[0]['text'])<=400 and selected[0]['text'].endswith('…'), 'long selected text was not truncated'
 print('5-message context, selected hit, resume command, project/cwd, and 400-cell truncation verified')
@@ -704,7 +712,7 @@ start=$SECONDS; recent=$("$BIN" --json 2>&1); rc=$?; if ((rc==0)) && jq -e '.sho
 start=$SECONDS; malformed=$("$BIN" --json '"' 2>&1); rc=$?; if ((rc==0)) && jq -e '.total==0 and (.hits|length)==0' <<<"$malformed" >/dev/null 2>&1; then record 'Malformed quote query does not crash' PASS $((SECONDS-start)) ''; else record 'Malformed quote query does not crash' FAIL $((SECONDS-start)) "$malformed"; fi
 
 start=$SECONDS; out=$("$BIN" --json snapshot 2>&1); rc=$?; printf '%s\n' "$out" > "$SCREENS/json-snapshot.jsonl"
-if ((rc==0)) && jq -e 'has("shown") and has("total") and has("total_sessions") and (.hits|length)==.shown and all(.hits[]; ([keys[]]|sort)==(["ref","harness","project","age","role","snippet"]|sort))' <<<"$out" >/dev/null; then record 'Compact JSON search-page schema' PASS $((SECONDS-start)) "$(jq -r '.shown' <<<"$out") hits"; else record 'Compact JSON search-page schema' FAIL $((SECONDS-start)) "$out"; fi
+if ((rc==0)) && jq -e 'has("shown") and has("total") and has("total_sessions") and (.hits|length)==.shown and all(.hits[]; ([keys[]]|sort)==(["ref","harness","project","age","role","snippet","highlights"]|sort))' <<<"$out" >/dev/null; then record 'Compact JSON search-page schema' PASS $((SECONDS-start)) "$(jq -r '.shown' <<<"$out") hits"; else record 'Compact JSON search-page schema' FAIL $((SECONDS-start)) "$out"; fi
 for h in claude codex pi; do start=$SECONDS; out=$("$BIN" --json --harness "$h" snapshot 2>&1); rc=$?; if ((rc==0)) && [[ -n $out ]] && ! grep -Ev '"harness":"'"$h"'"' <<<"$out" | grep -q .; then record "JSON harness filter $h" PASS $((SECONDS-start)) ''; else record "JSON harness filter $h" FAIL $((SECONDS-start)) "$out"; fi; done
 
 # Long Latin hits exercise snippet clipping in each agent's hit-list row.

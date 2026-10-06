@@ -71,21 +71,33 @@ type hit struct {
 	ID        int64  `json:"-"`
 }
 
-func resumeCmd(h, id, path, cwd string) string {
+// Structured arguments let native clients launch without parsing shell text.
+func resumeArgv(h, id, path, cwd string) []string {
 	switch h {
 	case "claude":
-		return "claude --resume " + id
+		return []string{"claude", "--resume", id}
 	case "codex":
-		return "codex resume " + id
+		return []string{"codex", "resume", id}
 	case "opencode":
-		return "opencode --session " + shellQuote(id)
+		return []string{"opencode", "--session", id}
 	case "cursor":
-		return "cursor-agent --resume " + shellQuote(id)
+		return []string{"cursor-agent", "--resume", id}
 	case "grok":
-		return "cd " + shellQuote(cwd)
+		return []string{"cd", cwd}
 	default:
-		return "pi --session " + path
+		return []string{"pi", "--session", path}
 	}
+}
+func resumeCmd(h, id, path, cwd string) string {
+	args := resumeArgv(h, id, path, cwd)
+	for i, arg := range args {
+		if arg == "" || strings.IndexFunc(arg, func(r rune) bool {
+			return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("_./:@%+=,-", r))
+		}) >= 0 {
+			args[i] = shellQuote(arg)
+		}
+	}
+	return strings.Join(args, " ")
 }
 func shortLatin(q string) bool {
 	found := false

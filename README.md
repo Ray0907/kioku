@@ -115,6 +115,22 @@ Mouse clicks select/focus rows, click a highlighter tag to remove it, and wheel 
 
 Editor resolution: `KIOKU_EDITOR`, then `VISUAL`, then the first available `zed`, `cursor`, `code`, `subl`, then supported macOS apps/Finder or `xdg-open` on Linux (install `xdg-utils`). Clipboard uses `pbcopy` on macOS; on Linux it tries `wl-copy` in a Wayland session, then `xclip`, then `xsel`. Install `wl-clipboard` for Wayland or `xclip`/`xsel` for X11. OSC 52 is always emitted as well, supporting remote terminals that allow it.
 
+## macOS app (round 1)
+
+[app/Kioku.xcodeproj](app/Kioku.xcodeproj) is a two-pane, keyboard-first AppKit reader.
+Build with Xcode 26 / the macOS 26 SDK; deployment target is macOS 14.
+It bundles the Go CLI and uses its JSON API—no SQLite or query parser in Swift.
+Search, agent/project filters, conversation previews, Resume, copy-command and
+Finder-style terminal/editor Open With menus are native controls.
+See [app/README.md](app/README.md) for building, E2E, limits and verification blockers.
+
+JSON now additionally exposes `show.resume_argv` alongside the original `cwd`
+and `resume_cmd`. Native clients launch structured arguments instead of parsing
+shell text. Search/session snippets and show messages can include `highlights`
+(`location`/`length` in UTF-16 code units, using the existing TUI display matcher);
+show messages include `matches` from the Go FTS predicate so clients can fold
+unrelated turns without interpreting the query.
+
 ## Data and privacy
 
 **Local-only and read-only:** transcript stores are never changed or uploaded. The only persistent writes are the search index under `$XDG_CACHE_HOME/kioku/index.db` (or `~/.cache/kioku/index.db`). Override it with `KIOKU_INDEX`. Source roots are selected independently, in this order (first nonempty value wins):
