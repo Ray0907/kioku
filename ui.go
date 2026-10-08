@@ -20,12 +20,12 @@ import (
 )
 
 type palette struct {
-	ink, hit, muted, rule, claude, codex, pi, selbg, fg string
-	pens                                                [3]string
+	hit, muted, rule, selbg, surf string
+	pens                          [3]string
 }
 
-var light = palette{"#1d3e66", "#b6322d", "#606a74", "#798898", "#8d5d1c", "#147175", "#3b723e", "#d2e3f9", "", [3]string{"#fde89a", "#bdfac8", "#ffe0f2"}}
-var dark = palette{"#c0d3eb", "#f6857a", "#95a0ab", "#6f7e8d", "#ddae6c", "#76c7cc", "#8fc990", "#293647", "", [3]string{"#3c3207", "#193b22", "#492537"}}
+var light = palette{"#b6322d", "#606a74", "#798898", "#d2e3f9", "#eef3f9", [3]string{"#fde89a", "#bdfac8", "#ffe0f2"}}
+var dark = palette{"#f6857a", "#95a0ab", "#6f7e8d", "#293647", "#232a35", [3]string{"#3c3207", "#193b22", "#492537"}}
 
 type pen struct {
 	word  string
@@ -440,8 +440,8 @@ func (m model) mouseUpdate(x tea.MouseMsg) (tea.Model, tea.Cmd) {
 			m.focus = true
 			return m, nil
 		}
-		if x.Y == 1 {
-			col := len("highlights ")
+		if x.Y == 1 && len(m.pens) > 0 {
+			col := len("  highlights ")
 			for i, p := range m.pens {
 				w := displayWidth(displayInline(p.word)) + 2
 				if x.X >= col && x.X < col+w {
@@ -452,7 +452,7 @@ func (m model) mouseUpdate(x tea.MouseMsg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		top := 3
+		top := m.headerRows()
 		listH := m.listHeight()
 		if !m.full && x.Y >= top && x.Y < top+listH {
 			i := m.offset + x.Y - top
@@ -471,13 +471,29 @@ func (m model) mouseUpdate(x tea.MouseMsg) (tea.Model, tea.Cmd) {
 		if x.Button == tea.MouseButtonWheelUp {
 			step = -3
 		}
-		if x.Y < 3+m.listHeight() && !m.full {
+		if x.Y < m.headerRows()+m.listHeight() && !m.full {
 			m.offset = max(0, min(max(0, len(m.rows)-m.listHeight()), m.offset+step))
 		} else {
 			m.cursor = max(0, min(len(m.messages)-1, m.cursor+step))
 		}
 	}
 	return m, nil
+}
+
+// headerRows counts query, optional highlights, and a blank row.
+func (m model) headerRows() int {
+	if len(m.pens) > 0 {
+		return 3
+	}
+	return 2
+}
+
+// chromeRows counts the header, list gap (unless full), and footer.
+func (m model) chromeRows() int {
+	if m.full {
+		return m.headerRows() + 1
+	}
+	return m.headerRows() + 2
 }
 func (m model) listHeight() int {
 	if m.full {
@@ -488,17 +504,22 @@ func (m model) listHeight() int {
 func (m model) color(s, c string) string {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(c)).Render(displayInline(s))
 }
-func (m model) dim(s string) string { return "\x1b[2m" + s + "\x1b[22m" }
-func (m model) band(h string) string {
+func agentMark(h string) string {
 	switch h {
 	case "claude":
-		return m.pal.claude
+		return "✻"
 	case "codex":
-		return m.pal.codex
-	case "grok", "opencode", "cursor":
-		return m.pal.muted
+		return "◇"
+	case "pi":
+		return "π"
+	case "grok":
+		return "✕"
+	case "opencode":
+		return "▢"
+	case "cursor":
+		return "↖"
 	default:
-		return m.pal.pi
+		return "?"
 	}
 }
 
@@ -674,103 +695,81 @@ func (m model) View() string {
 		}
 		count = fmt.Sprintf("%d messages · %d sessions", len(m.rows), len(sessions))
 	}
-	q := m.color("kioku", m.pal.ink) + " " + m.color("▸", m.pal.muted) + " "
+	strong := lipgloss.NewStyle().Bold(true)
+	q := "  " + strong.Foreground(lipgloss.Color(m.pal.muted)).Render("kioku") + " ▸ "
 	input := displayInline(m.q)
 	if m.focus {
 		input += "▌"
 	}
-	right := m.color(count, m.pal.muted)
-	line := q + pad(clip(input, max(1, w-displayWidth(q)-displayWidth(right)-2)), max(1, w-displayWidth(q)-displayWidth(right))) + right
-	if !m.focus {
-		line = m.dim(line)
+	right := m.color(clip(count, max(0, w-displayWidth(q)-4)), m.pal.muted)
+	inputW := max(0, w-displayWidth(q)-displayWidth(right)-2)
+	b.WriteString(q + pad(strong.Render(clip(input, max(0, inputW-2))), inputW) + right + "  \n")
+	if len(m.pens) > 0 {
+		ps := m.color("  highlights ", m.pal.muted)
+		for _, p := range m.pens {
+			ps += lipgloss.NewStyle().Background(lipgloss.Color(m.pal.pens[p.color])).Render(" "+displayInline(p.word)+" ") + " "
+		}
+		b.WriteString(clipANSI(ps, w-2) + "\n")
 	}
-	b.WriteString(line + "\n")
-	ps := m.color("highlights ", m.pal.muted)
-	if len(m.pens) == 0 {
-		ps += m.color("none · press h in results to add", m.pal.muted)
-	}
-	for _, p := range m.pens {
-		ps += lipgloss.NewStyle().Background(lipgloss.Color(m.pal.pens[p.color])).Render(" "+displayInline(p.word)+" ") + " "
-	}
-	ps = clipANSI(ps, w)
-	if !m.focus {
-		ps = m.dim(ps)
-	}
-	b.WriteString(ps + "\n")
-	rule := m.color(strings.Repeat("─", w), m.pal.rule)
-	b.WriteString(rule + "\n")
+	b.WriteByte('\n')
 	listH := m.listHeight()
 	if !m.full {
 		for i := 0; i < listH; i++ {
 			idx := m.offset + i
 			if idx >= len(m.rows) {
 				if idx == 0 {
-					b.WriteString(m.color(" No message contains all of these words. Drop a word or remove the quotes.", m.pal.muted))
+					b.WriteString(m.color("  No message contains all of these words. Drop a word or remove the quotes.", m.pal.muted))
 				}
 				b.WriteString("\n")
 				continue
 			}
 			x := m.rows[idx]
 			selected := idx == m.sel
-			agW, pjW, ageW := max(8, len(x.Harness)+1), 12, 7
-			sw := max(5, w-agW-pjW-ageW-4)
-			sn := clip(displayInline(x.Snippet), sw)
+			const pjW, ageW = 13, 4
+			sw := max(1, w-5-pjW-ageW-2)
+			sn := clip(displayInline(x.Snippet), max(1, sw-2))
 			cursor := " "
-			agent := m.color(x.Harness, m.band(x.Harness))
-			project := m.color(clip(displayInline(x.Project), pjW-1), m.pal.muted)
+			agent := m.color(agentMark(x.Harness), m.pal.muted)
+			project := clip(displayInline(x.Project), pjW-1)
 			when := m.color(fmt.Sprintf("%*s", ageW, age(x.TS)), m.pal.muted)
 			if selected {
-				cursor = m.color("›", m.pal.ink)
-				strong := lipgloss.NewStyle().Bold(true)
-				agent = strong.Render(x.Harness)
-				project = strong.Render(clip(displayInline(x.Project), pjW-1))
+				cursor = strong.Render("›")
+				agent = strong.Render(agentMark(x.Harness))
+				project = strong.Render(project)
 				when = strong.Render(fmt.Sprintf("%*s", ageW, age(x.TS)))
 			}
-			row := cursor + m.color("▌", m.band(x.Harness)) + " " + pad(m.paint(sn, true, selected), sw) + " " + pad(agent, agW) + pad(project, pjW) + when
+			row := "  " + cursor + agent + " " + pad(m.paint(sn, true, selected), sw) + pad(project, pjW) + when + "  "
 			if selected {
 				row = m.selectionRow(row, w)
 			}
-			row = clipANSI(row, w)
-			if m.focus && !selected {
-				row = m.dim(row)
-			}
-			b.WriteString(row + "\n")
+			b.WriteString(clipANSI(row, w) + "\n")
 		}
-		b.WriteString(rule + "\n")
+		b.WriteString("\n") // breathing room before the title bar; the bar's tint does the separating
 	}
 	extra := 0
 	if m.status != "" && !m.prompt {
 		extra = 1
 	}
-	pageH := max(1, m.height-6-listH-extra)
-	if m.full {
-		pageH = max(1, m.height-5-extra)
-	}
+	pageH := max(1, m.height-m.chromeRows()-listH-extra)
 	lines := m.pageLines(w)
 	for i := 0; i < pageH; i++ {
 		if i < len(lines) {
-			if m.focus && i != 0 {
-				b.WriteString(m.dim(lines[i]))
-			} else {
-				b.WriteString(lines[i])
-			}
+			b.WriteString(lines[i])
 		}
 		b.WriteByte('\n')
 	}
-	b.WriteString(rule + "\n")
 	if m.prompt {
-		b.WriteString(m.color("highlight ▸ ", m.pal.ink) + displayInline(m.status) + "▌  enter add · esc cancel")
+		b.WriteString("  " + strong.Render("highlight ▸ ") + displayInline(m.status) + "▌  enter add · esc cancel")
 	} else if m.help {
-		b.WriteString("focus · query · ↑↓ · n/N · h/H · v · o · y · enter · tab · ctrl+c")
+		b.WriteString("  focus · query · ↑↓ · n/N · h/H · v · o · y · enter · tab · ctrl+c")
 	} else {
 		if m.status != "" {
-			b.WriteString(m.color(clip(displayInline(m.status), w), m.pal.ink) + "\n")
+			b.WriteString("  " + strong.Render(clip(displayInline(m.status), w-4)) + "\n")
 		}
 		if m.focus {
-			b.WriteString(m.color("type to search   ↓/esc results   enter resume   tab agent", m.pal.muted))
+			b.WriteString(m.keys(w, "enter", "resume", "↓", "results", "tab", "agent", "ctrl+u", "clear"))
 		} else {
-			label, _ := editor()
-			b.WriteString(m.color(clip("↑↓ move  n/N next hit  h highlight  H clear  v full  o open in "+label+"  y copy  enter resume  / search  ?", w), m.pal.muted))
+			b.WriteString(m.keys(w, "enter", "resume", "↑↓", "move", "n/N", "next hit", "/", "search", "tab", "✻ ◇ π", "?", "help"))
 		}
 	}
 	rendered := strings.Split(b.String(), "\n")
@@ -778,6 +777,15 @@ func (m model) View() string {
 		rendered[i] = fitLine(rendered[i], w)
 	}
 	return strings.Join(rendered, "\n")
+}
+
+// keys renders bold keys and muted labels, clipped from the tail.
+func (m model) keys(w int, pairs ...string) string {
+	parts := make([]string, 0, len(pairs)/2)
+	for i := 0; i+1 < len(pairs); i += 2 {
+		parts = append(parts, lipgloss.NewStyle().Bold(true).Render(pairs[i])+" "+m.color(pairs[i+1], m.pal.muted))
+	}
+	return "  " + clipANSI(strings.Join(parts, "    "), w-4)
 }
 func clipANSI(s string, w int) string {
 	if w <= 0 {
@@ -797,8 +805,9 @@ func fitLine(s string, w int) string {
 
 var sgrCode = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
-func (m model) selectionRow(s string, w int) string {
-	color := lipgloss.ColorProfile().Color(m.pal.selbg)
+func (m model) selectionRow(s string, w int) string { return m.bgRow(s, w, m.pal.selbg) }
+func (m model) bgRow(s string, w int, hex string) string {
+	color := lipgloss.ColorProfile().Color(hex)
 	if color == nil || color.Sequence(true) == "" {
 		return pad(s, w)
 	}
@@ -808,18 +817,36 @@ func (m model) selectionRow(s string, w int) string {
 }
 func (m model) pageLines(w int) []string {
 	if m.help {
-		return []string{"  focus    Bright zone takes keys; search dims results", "  query    space = AND · quotes = phrase · -word = exclude", "  ↓ / esc search to results    / results to search", "  ↑ ↓     previous / next message", "  n / N   next / previous hit in transcript", "  h / H   add highlighter / clear highlights", "  v       full transcript (hide hit list)", "  o       open directory in editor", "  y       copy resume command", "  enter   exit and resume in original cwd", "  tab     all · claude · codex · pi · grok · opencode · cursor", "  ctrl+c  quit"}
+		return []string{"  focus    ▌ in query = search; ↓ moves to results", "  query    space = AND · quotes = phrase · -word = exclude", "  ↓ / esc search to results    / results to search", "  ↑ ↓     previous / next result", "  n / N   next / previous hit in transcript", "  h / H   add highlighter / clear highlights", "  v       full transcript (hide hit list)", "  o       open directory in editor", "  y       copy resume command", "  enter   exit and resume in original cwd", "  tab     all · claude · codex · pi · grok · opencode · cursor", "  agents   ✻ claude   ◇ codex   π pi   ✕ grok   ▢ opencode   ↖ cursor", "  ctrl+c  quit"}
 	}
 	if len(m.rows) == 0 {
 		return nil
 	}
 	sel := m.rows[m.sel]
-	left := m.color("▌", m.band(sel.Harness)) + " " + m.color(sel.Project, m.pal.ink) + "  " + m.color(sel.CWD+"  "+sel.TS[:min(10, len(sel.TS))], m.pal.muted) + "  " + m.color(sel.Harness, m.band(sel.Harness))
-	right := m.color(fmt.Sprintf("hit %d of %d", m.sel+1, len(m.rows)), m.pal.muted)
-	header := pad(clipANSI(left, max(1, w-displayWidth(right)-1)), w-displayWidth(right)) + right
-	out := []string{header}
-	keep := map[int]bool{}
+	cwd := sel.CWD
+	if home, e := os.UserHomeDir(); e == nil && home != "" && strings.HasPrefix(cwd, home+"/") {
+		cwd = "~" + cwd[len(home):]
+	}
+	left := "  " + m.color(agentMark(sel.Harness), m.pal.muted) + " " + lipgloss.NewStyle().Bold(true).Render(displayInline(sel.Project)) + "  " + m.color(sel.Harness+"  "+sel.TS[:min(10, len(sel.TS))]+"  "+cwd, m.pal.muted)
 	active := toFTS(m.q) != ""
+	count := fmt.Sprintf("result %d of %d", m.sel+1, len(m.rows))
+	if active {
+		hits := 0
+		for _, hit := range m.hitIndex {
+			if hit {
+				hits++
+			}
+		}
+		noun := "hits"
+		if hits == 1 {
+			noun = "hit"
+		}
+		count += fmt.Sprintf(" · %d %s here", hits, noun)
+	}
+	right := m.color(clip(count, max(0, w-6)), m.pal.muted)
+	header := pad(clipANSI(left, max(0, w-displayWidth(right)-4)), w-displayWidth(right)-2) + right + "  "
+	out := []string{m.bgRow(header, w, m.pal.surf), ""}
+	keep := map[int]bool{}
 	start, end := 0, len(m.messages)
 	// ponytail: render a 200-message window for huge sessions; virtualize line offsets if direct arbitrary scrolling is needed.
 	if end > 200 {
@@ -831,6 +858,12 @@ func (m model) pageLines(w int) []string {
 		if m.full || !active || m.hitIndex[x.Index] {
 			keep[i] = true
 			if !m.full && active {
+				if i > start {
+					keep[i-1] = true
+				}
+				if i+1 < end {
+					keep[i+1] = true
+				}
 				for j := i; j >= start; j-- {
 					if m.messages[j].Role == "user" {
 						keep[j] = true
@@ -840,85 +873,94 @@ func (m model) pageLines(w int) []string {
 			}
 		}
 	}
-	prev := -1
+	prev, focus := -1, 0
 	folded := start > 0
+	skipped := start
+	foldRow := func(n int) string {
+		if n <= 0 {
+			return m.color("           ⋯", m.pal.muted)
+		}
+		return m.color(fmt.Sprintf("           ⋯ %d hidden · v shows all", n), m.pal.muted)
+	}
 	for i := start; i < end; i++ {
 		x := m.messages[i]
 		if !keep[i] {
 			folded = true
+			skipped++
 			continue
 		}
-		if prev >= 0 && (folded || gap(m.messages[prev].TS, x.TS)) {
-			out = append(out, m.color("     ⋯", m.pal.muted))
+		if folded || prev >= 0 && gap(m.messages[prev].TS, x.TS) {
+			out = append(out, foldRow(skipped))
 		}
 		folded = false
-		if x.Role == "user" && prev >= 0 {
-			out = append(out, "")
-		}
-		who := clip(displayInline(x.Role), 5)
-		if who == "user" {
+		skipped = 0
+		who := clip(displayInline(x.Role), 4)
+		if x.Role == "user" {
 			who = "you"
+		} else if x.Role == "assistant" {
+			who = "asst"
 		}
 		selected := i == m.cursor
-		star := "  "
+		isHit := active && m.hitIndex[x.Index]
+		context := !m.full && active && !isHit
+		star := " "
 		if selected {
-			star = m.color("› ", m.pal.ink)
-		} else if active && m.hitIndex[x.Index] {
-			star = m.color("✱ ", m.pal.hit)
+			star = lipgloss.NewStyle().Bold(true).Render("›")
+			focus = len(out)
+		} else if isHit {
+			star = m.color("✱", m.pal.hit)
 		}
 		stamp := x.TS
 		if len(stamp) >= 16 {
 			stamp = stamp[11:16]
 		}
-		stampText := m.color(fmt.Sprintf("%-5s", stamp), m.pal.muted)
-		roleText := m.color(pad(who, 5), m.pal.muted)
+		stampText := m.color(pad(clip(stamp, 5), 5), m.pal.muted)
+		roleText := m.color(pad(who, 4), m.pal.muted)
 		if who == "you" {
-			roleText = m.color(pad(who, 5), m.pal.ink)
+			style := lipgloss.NewStyle().Bold(true)
+			if context {
+				style = style.Foreground(lipgloss.Color(m.pal.muted))
+			}
+			roleText = style.Render(pad(who, 4))
 		}
 		if selected {
 			strong := lipgloss.NewStyle().Bold(true)
-			stampText = strong.Render(fmt.Sprintf("%-5s", stamp))
-			roleText = strong.Render(pad(who, 5))
+			stampText = strong.Render(pad(clip(stamp, 5), 5))
+			roleText = strong.Render(pad(who, 4))
 		}
-		prefix := star + " " + stampText + " " + roleText + " "
-		textW := max(5, w-15)
+		prefix := "  " + star + "  " + stampText + "  " + roleText + "  "
+		const textCol = 18
+		textW := max(1, w-textCol-2)
 		for j, line := range wrap(displayTranscript(x.Text), textW) {
 			p := prefix
 			if j > 0 {
-				p = strings.Repeat(" ", 15)
+				p = strings.Repeat(" ", textCol)
 			}
-			line = p + m.paint(line, active, selected)
+			line = m.paint(line, isHit, selected)
+			if context && !selected {
+				line = lipgloss.NewStyle().Foreground(lipgloss.Color(m.pal.muted)).Render(line)
+			}
+			line = p + line
 			if selected {
 				line = m.selectionRow(line, w)
-				if m.focus {
-					line = "\x1b[22m" + line // Override the pane's dim on the selected hit.
-				}
 			}
 			out = append(out, clipANSI(line, w))
 		}
 		prev = i
 	}
 	if folded || end < len(m.messages) {
-		out = append(out, m.color("     ⋯", m.pal.muted))
+		out = append(out, foldRow(skipped+len(m.messages)-end))
 	}
 	extra := 0
 	if m.status != "" && !m.prompt {
 		extra = 1
 	}
-	available := max(1, m.height-6-m.listHeight()-extra)
-	if m.full {
-		available = max(1, m.height-5-extra)
-	}
+	available := max(1, m.height-m.chromeRows()-m.listHeight()-extra)
 	if len(out) > available {
-		focus := 0
-		for i, l := range out {
-			if strings.Contains(l, "\x1b[48;") {
-				focus = i
-				break
-			}
-		}
-		start := max(0, min(len(out)-available, focus-available/2))
-		out = out[start:]
+		// The title bar stays pinned; the body scrolls around the selected message.
+		body, room := out[2:], max(0, available-2)
+		start := max(0, min(len(body)-room, focus-2-room/2))
+		out = append(out[:2:2], body[start:]...)
 	}
 	return out
 }
