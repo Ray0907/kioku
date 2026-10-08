@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.3.1 - 2026-10-09
+
+### Changed
+- The transcript pane renders only the messages that reach the screen, starting from the selected one. A frame on a 140x45 terminal drops from about 6 ms to 0.8 ms (folded view) and from about 10 ms to 1 ms (full view of a long session), with the same visible output.
+
+### Added
+- `demo/record.sh` records the README demo GIF with VHS from the synthetic demo home.
+
 ## v0.3.0 - 2026-10-09
 
 ### Added
