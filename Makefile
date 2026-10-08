@@ -1,5 +1,11 @@
 .PHONY: build install clean release
 
+# macOS 27 CLT SDK ships .tbd files this linker rejects ("unknown architecture"); pin 26 when present.
+SDK26 := /Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk
+ifneq ($(wildcard $(SDK26)),)
+export SDKROOT ?= $(SDK26)
+endif
+
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 # Oldest macOS Go supports; otherwise clang targets the build machine's SDK (e.g. 15.0).
