@@ -873,9 +873,14 @@ func (m model) pageLines(w int) []string {
 			}
 		}
 	}
-	prev, focus := -1, 0
-	folded := start > 0
-	skipped := start
+	// Only the messages that can reach the screen are painted: pass one lists the kept
+	// messages cheaply, pass two renders outward from the selected one until the pane is full.
+	type item struct {
+		i    int
+		lead string // fold marker shown above this message, if any
+	}
+	var items []item
+	prev, folded, skipped := -1, start > 0, start
 	foldRow := func(n int) string {
 		if n <= 0 {
 			return m.color("           ⋯", m.pal.muted)
@@ -883,17 +888,29 @@ func (m model) pageLines(w int) []string {
 		return m.color(fmt.Sprintf("           ⋯ %d hidden · v shows all", n), m.pal.muted)
 	}
 	for i := start; i < end; i++ {
-		x := m.messages[i]
 		if !keep[i] {
 			folded = true
 			skipped++
 			continue
 		}
-		if folded || prev >= 0 && gap(m.messages[prev].TS, x.TS) {
-			out = append(out, foldRow(skipped))
+		it := item{i: i}
+		if folded || prev >= 0 && gap(m.messages[prev].TS, m.messages[i].TS) {
+			it.lead = foldRow(skipped)
 		}
-		folded = false
-		skipped = 0
+		items = append(items, it)
+		folded, skipped, prev = false, 0, i
+	}
+	trail := ""
+	if folded || end < len(m.messages) {
+		trail = foldRow(skipped + len(m.messages) - end)
+	}
+	render := func(it item) []string {
+		var lines []string
+		if it.lead != "" {
+			lines = append(lines, it.lead)
+		}
+		i := it.i
+		x := m.messages[i]
 		who := clip(displayInline(x.Role), 4)
 		if x.Role == "user" {
 			who = "you"
@@ -906,7 +923,6 @@ func (m model) pageLines(w int) []string {
 		star := " "
 		if selected {
 			star = lipgloss.NewStyle().Bold(true).Render("›")
-			focus = len(out)
 		} else if isHit {
 			star = m.color("✱", m.pal.hit)
 		}
@@ -944,22 +960,74 @@ func (m model) pageLines(w int) []string {
 			if selected {
 				line = m.selectionRow(line, w)
 			}
-			out = append(out, clipANSI(line, w))
+			lines = append(lines, clipANSI(line, w))
 		}
-		prev = i
-	}
-	if folded || end < len(m.messages) {
-		out = append(out, foldRow(skipped+len(m.messages)-end))
+		return lines
 	}
 	extra := 0
 	if m.status != "" && !m.prompt {
 		extra = 1
 	}
 	available := max(1, m.height-m.chromeRows()-m.listHeight()-extra)
+	room := max(0, available-2)
+	fi := -1
+	for k, it := range items {
+		if it.i == m.cursor {
+			fi = k
+			break
+		}
+	}
+	rendered := make([][]string, len(items))
+	get := func(k int) []string {
+		if rendered[k] == nil {
+			rendered[k] = render(items[k])
+		}
+		return rendered[k]
+	}
+	lo, hi, before, after := 0, 0, 0, 0
+	if fi >= 0 {
+		lo, hi = fi, fi+1
+		after = len(get(fi))
+	}
+	// Extend until half a pane lies above the selection and a full pane below it, or an end is hit.
+	trailRows := 0
+	if trail != "" {
+		trailRows = 1
+	}
+	needAbove := func() bool {
+		// Half a pane above the selection; a whole pane when the end is in view, since the page then scrolls to the bottom.
+		return lo > 0 && (before < room/2+1 || hi == len(items) && before+after+trailRows < room)
+	}
+	needBelow := func() bool { return hi < len(items) && after < room+1 }
+	for needAbove() || needBelow() {
+		if needAbove() {
+			lo--
+			before += len(get(lo))
+		}
+		if needBelow() {
+			after += len(get(hi))
+			hi++
+		}
+	}
+	var body []string
+	focus := 0
+	for k := lo; k < hi; k++ {
+		if k == fi {
+			focus = len(body)
+			if items[k].lead != "" {
+				focus++
+			}
+		}
+		body = append(body, get(k)...)
+	}
+	if hi == len(items) && trail != "" {
+		body = append(body, trail)
+	}
+	out = append(out, body...)
 	if len(out) > available {
 		// The title bar stays pinned; the body scrolls around the selected message.
-		body, room := out[2:], max(0, available-2)
-		start := max(0, min(len(body)-room, focus-2-room/2))
+		body := out[2:]
+		start := max(0, min(len(body)-room, focus-room/2))
 		out = append(out[:2:2], body[start:]...)
 	}
 	return out
