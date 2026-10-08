@@ -2,10 +2,12 @@
 Output assets/demo.gif
 
 Set Shell "bash"
-Set FontFamily "JetBrains Mono"
-Set FontSize 15
-Set Width 1180
-Set Height 700
+Set FontFamily "Menlo"
+Set FontSize 17
+Set LetterSpacing 0
+Set LineHeight 1.2
+Set Width 1280
+Set Height 780
 Set Padding 22
 Set TypingSpeed 70ms
 Set Theme {"name":"kioku","black":"#1c1d22","red":"#f6857a","green":"#8fc990","yellow":"#ddae6c","blue":"#c0d3eb","magenta":"#c0d3eb","cyan":"#76c7cc","white":"#d4d6dc","brightBlack":"#6f7e8d","brightRed":"#f6857a","brightGreen":"#8fc990","brightYellow":"#ddae6c","brightBlue":"#c0d3eb","brightMagenta":"#c0d3eb","brightCyan":"#76c7cc","brightWhite":"#ffffff","background":"#1c1d22","foreground":"#d4d6dc","selection":"#293647","cursor":"#d4d6dc"}
