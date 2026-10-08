@@ -8,7 +8,7 @@
   <img src="assets/kioku.png" alt="kioku: a search for checkout lists matching messages from Claude Code, Codex and Pi, with the selected session's transcript below" width="880">
 </p>
 
-- **Message-level hits.** Every row is the message that matched, ranked by BM25, with its agent, project and age.
+- **Message-level hits.** Every row is the message that matched, ranked by BM25, with an agent mark, project and age.
 - **Real CJK search.** [fts5-cjk](https://github.com/Ray0907/fts5-cjk) is compiled in, so `結帳`, `ログイン` and `결제` match inside running text.
 - **Read the context, then continue.** The transcript folds unrelated turns into `⋯`. `enter` resumes the session in its own directory with `claude --resume`, `codex resume`, `pi --session` or `opencode --session`. Grok shows only `cd <cwd>` (Enter exits and prints it); no resume flag is assumed. `o` opens the project in your editor.
 - **Local and read-only.** It never edits agent transcripts or checkpoints their databases. The only application data it writes is its own index in `~/.cache/kioku`.
@@ -61,7 +61,17 @@ go install -tags sqlite_fts5 github.com/Ray0907/kioku@latest
 make build
 ```
 
-The `sqlite_fts5` build tag is required.
+The `sqlite_fts5` build tag is required. `make install` puts the binary in `$(go env GOBIN)`, or `~/go/bin` when unset; make sure that directory is on your `PATH`.
+
+If the macOS link step fails with `unknown architecture` from a `.tbd` file, your default SDK is newer than the linker. `make` already pins the macOS 26 SDK when it is installed; with `go install`, set `SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk` yourself.
+
+### Check and update
+
+```sh
+kioku --version
+```
+
+To update, repeat the install method you used. The index in `~/.cache/kioku` is reused; `kioku index --rebuild` rebuilds it if a release says it must.
 
 ## Use
 

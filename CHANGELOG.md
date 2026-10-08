@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.3.0 - 2026-10-09
 
 ### Added
 - macOS AppKit app in `app/`, targeting macOS 14 with the macOS 26 SDK: bundled Go engine, two-pane message search/conversation preview, agent counts, project filter, session mode, folded context and highlighted hits.
@@ -8,6 +8,13 @@
 - Liquid Glass chrome on macOS 26; visual-effect/solid fallbacks, live accessibility modes, mouse-down feedback, cancellable searches, 30 ms debounce, stale-while-revalidate results and interruptible, critically damped layer transitions.
 - XCUITest-only app E2E suite: fixture HOME, launch recorder stubs, search/filter/order/preview/copy/resume checks, preference persistence, race/held-arrow/budget checks and accessibility-mode screenshots.
 - JSON `resume_argv`, UTF-16 `highlights`, and conversation-message `matches` metadata, reusing Go query/display logic.
+
+### Changed
+- Minimal TUI layout: a single-color palette (text, gray, red for hits only), a one-cell agent mark at the start of each row (`✻` claude, `◇` codex, `π` pi, `✕` grok, `▢` opencode, `↖` cursor), project and age columns, and no rules, color bands or dimming.
+- The detail pane has a tinted title bar showing the agent, project, date, path and `result N of M · K hits here`. The messages before and after each hit appear as gray context, and the rest fold into `⋯ N hidden · v shows all`.
+- Hit words are bold, red and underlined on every row, not only the selected one.
+- The footer shows five keys in results mode and four while searching; the `?` help lists the agent marks.
+- `Makefile` pins the macOS 26 SDK when it is installed, because the macOS 27 command line tools SDK breaks the cgo link.
 
 ### Fixed
 - Quote unsafe resume arguments and preserve raw JSON cwd paths; shell quoting preserves non-printing characters without changing ordinary text command formatting.
