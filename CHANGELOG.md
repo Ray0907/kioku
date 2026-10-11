@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `kioku mcp`: stdio MCP server (2025-06-18) with read-only search, sessions and show tools, compact JSON pages, cursor support and recoverable tool/protocol errors; no new dependencies.
+- Claude Code plugin and marketplace packaging, using the existing kioku skill and MCP server, plus agent setup examples in the README.
+- Mock-only MCP E2E coverage and a repeatable `test/mcp-e2e-result.json` artifact.
+
 ## v0.3.1 - 2026-10-09
 
 ### Changed

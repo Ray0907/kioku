@@ -1,0 +1,28 @@
+{
+  "protocol_version": "2025-06-18",
+  "tools": [
+    "kioku_search",
+    "kioku_sessions",
+    "kioku_show"
+  ],
+  "pass": 16,
+  "fail": 0,
+  "checks": [
+    "stdout contains JSON-RPC lines only; initialized notification has no reply",
+    "initialize and ping preserve numeric/string request IDs",
+    "three read-only tools expose complete, strict input schemas; no rebuild",
+    "search JSON matches --json",
+    "sessions JSON matches --json",
+    "show JSON matches --json",
+    "all three tool cursors interoperate with CLI",
+    "show caps text by default; full=true returns only the full selected message",
+    "harness/project/all_time/include_self/all flags and empty-query browsing match CLI",
+    "debug logs go to stderr",
+    "unknown tools, missing/wrong/null/extra arguments, invalid cursors and query errors are tool errors",
+    "malformed lines and protocol errors recover; notifications never reply",
+    "oversized requests are discarded with null-ID -32600; next ping succeeds",
+    "1 MiB boundary is accepted; normal and oversized final lines exit cleanly at EOF",
+    "source transcripts remain byte-identical",
+    "Claude Code plugin/marketplace metadata and root MCP config are valid"
+  ]
+}
