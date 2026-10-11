@@ -160,7 +160,41 @@ Cursor CLI sessions are `~/.cursor/chats/<md5(cwd)>/<session-id>/{meta.json,stor
 
 Search tokenization uses [fts5-cjk](https://github.com/Ray0907/fts5-cjk), statically linked under its original license in `internal/cjk/`.
 
-## Agent skill
+## Use from agents
+
+Install the `kioku` binary first and keep it on the agent's `PATH`. In Claude Code:
+
+```text
+/plugin marketplace add Ray0907/kioku
+/plugin install kioku@kioku
+```
+
+Restart Claude Code after installation. The plugin loads the existing `skills/kioku` skill and starts the local MCP server. It exposes `kioku_search`, `kioku_sessions` and `kioku_show`: the same compact JSON pages as `--json`, returned in a text content block. All tools are read-only; they update kioku's cache but never change source transcripts or expose `index --rebuild`. Snippets are capped unless you explicitly use `kioku_show` with `full: true` for a message ref.
+
+For any stdio MCP client, add this to its MCP configuration (adapt the outer key if your client uses a different format):
+
+```json
+{
+  "mcpServers": {
+    "kioku": { "command": "kioku", "args": ["mcp"] }
+  }
+}
+```
+
+`kioku mcp` uses newline-delimited JSON-RPC 2.0 over stdin/stdout, with protocol version `2025-06-18`. Logs go only to stderr. Normal `KIOKU_*` source and index environment variables still apply. The server can read your local transcripts: enable it only in trusted clients and quote only the history needed for the task.
+
+For harnesses without MCP or skills, put this in `AGENTS.md`:
+
+```markdown
+When asked about earlier coding-agent work, search local history with:
+- `kioku --json --sessions -p <project> "<query>"`
+- `kioku show <best_ref> --json --query "<query>"`
+Use `kioku --json "<query>"` for message-level hits; reuse the exact query
+and flags with `--cursor <next_cursor>` if needed. Quote only relevant
+findings, include the resume command, and never run it without permission.
+```
+
+### Install the skill alone
 
 `skills/kioku/SKILL.md` teaches coding agents to reach for kioku whenever you mention earlier work ("last time we…", "where did I…", 之前、上次). With it, they search wide to narrow instead of grepping raw transcripts: `--sessions`, then hits, then `show`, paging with `--cursor`. Install it once:
 

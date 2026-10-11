@@ -1,0 +1,14 @@
+{
+  "name": "kioku",
+  "description": "The kioku local coding-agent history plugin.",
+  "owner": {
+    "name": "Ray0907"
+  },
+  "plugins": [
+    {
+      "name": "kioku",
+      "source": "./",
+      "description": "Search past local coding-agent sessions with read-only MCP tools and a lookup skill."
+    }
+  ]
+}

@@ -26,6 +26,7 @@ const usage = `Usage:
   kioku --sessions [query]        Matching sessions, ranked by best hit
   kioku show <ref|session-id>     Message context or start of session
   kioku index [--rebuild]         Sync sources and print counts
+  kioku mcp                      Serve read-only MCP tools over stdio
   kioku help                      Show this help
 
 Flags: --json (one JSON page), --limit N (default 10 for pages, 300 for TUI),
@@ -83,6 +84,12 @@ func (p *projectFlags) Set(name string) error {
 func run() error {
 	started := time.Now()
 	args := os.Args[1:]
+	if len(args) > 0 && args[0] == "mcp" {
+		if len(args) != 1 {
+			return fmt.Errorf("mcp takes no arguments")
+		}
+		return serveMCP(os.Stdin, output)
+	}
 	if len(args) > 0 && args[0] == "help" {
 		fmt.Fprint(output, usage)
 		return nil
