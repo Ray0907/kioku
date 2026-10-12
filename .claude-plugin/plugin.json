@@ -1,7 +1,7 @@
 {
   "name": "kioku",
   "description": "Search past local coding-agent sessions with compact, read-only MCP tools and a lookup skill.",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "author": { "name": "Ray0907" },
   "repository": "https://github.com/Ray0907/kioku"
 }
