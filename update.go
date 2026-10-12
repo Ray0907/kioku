@@ -61,6 +61,10 @@ func runUpdate(args []string) error {
 }
 
 func doUpdate(c *http.Client, current, exe, goos, goarch string, check bool, w io.Writer) error {
+	// Replacing a file inside the Cellar would leave Homebrew's records stale.
+	if strings.Contains(filepath.ToSlash(exe), "/Cellar/") {
+		return fmt.Errorf("installed by Homebrew; run: brew upgrade kioku")
+	}
 	body, err := updateGet(c, updateAPI, 1<<20)
 	if err != nil {
 		return err

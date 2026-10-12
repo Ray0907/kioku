@@ -175,3 +175,20 @@ func TestRunUpdateArguments(t *testing.T) {
 		t.Fatalf("want usage error, got %v", err)
 	}
 }
+
+func TestUpdateRefusesHomebrewInstall(t *testing.T) {
+	updateServer(t, "v0.5.0", "new-binary", "")
+	dir := filepath.Join(t.TempDir(), "Cellar", "kioku", "0.4.1", "bin")
+	os.MkdirAll(dir, 0o755)
+	exe := filepath.Join(dir, "kioku")
+	os.WriteFile(exe, []byte("old"), 0o755)
+	for _, check := range []bool{false, true} {
+		_, err := runUpd("v0.4.1", exe, "darwin", check)
+		if err == nil || !strings.Contains(err.Error(), "brew upgrade kioku") {
+			t.Fatalf("check=%v: want a brew hint, got %v", check, err)
+		}
+		if content(t, exe) != "old" {
+			t.Fatal("binary changed")
+		}
+	}
+}
