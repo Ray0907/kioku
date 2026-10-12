@@ -8,6 +8,9 @@
 - Claude Code plugin and marketplace packaging, using the existing kioku skill and MCP server, plus agent setup examples in the README.
 - Mock-only MCP E2E coverage and a repeatable `test/mcp-e2e-result.json` artifact.
 
+### Fixed
+- The TUI keeps the current transcript while the next session loads instead of blanking it, and skips the reload when the same session under the same query is already shown, so moving the selection and re-queries after indexing no longer flicker.
+
 ## v0.3.1 - 2026-10-09
 
 ### Changed
