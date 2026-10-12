@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.4.0 - 2026-10-12
 
 ### Added
 - `kioku doctor`: read-only source, index and SQLite/FTS5/CJK diagnostics, optional missing sources, JSON output and failure exit codes.
