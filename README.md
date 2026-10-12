@@ -81,6 +81,7 @@ kioku 紅茶                # interactive search
 kioku --json snapshot    # compact JSON page for scripts/agents
 kioku --harness pi 魚池   # restrict to one agent
 kioku index              # sync and print counts
+kioku doctor             # read-only source/index/SQLite checks; --json for scripts
 kioku index --rebuild    # replace the index
 ```
 
