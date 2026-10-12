@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `kioku update [--check]`: install the latest release over the running binary. It verifies the archive against the release's `SHA256SUMS`, replaces the binary atomically, and leaves it untouched on any failure.
+
 ## v0.4.1 - 2026-10-12
 
 ### Fixed

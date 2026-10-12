@@ -71,7 +71,12 @@ If the macOS link step fails with `unknown architecture` from a `.tbd` file, you
 kioku --version
 ```
 
-To update, repeat the install method you used. The index in `~/.cache/kioku` is reused; `kioku index --rebuild` rebuilds it if a release says it must.
+```sh
+kioku update --check     # compare with the latest release, change nothing
+kioku update             # download the latest release and replace this binary
+```
+
+`update` downloads the archive for your OS and CPU from the GitHub release, checks it against the release's `SHA256SUMS`, and swaps the binary in place only if everything verifies; on any failure the current binary is left as it was. The checksum file comes from the same release, so it guards against a corrupt or truncated download, not a compromised release. It needs write access to the directory holding the binary. If you installed with `go install`, `go install -tags sqlite_fts5 github.com/Ray0907/kioku@latest` works too. The index in `~/.cache/kioku` is reused; `kioku index --rebuild` rebuilds it if a release says it must.
 
 ## Use
 
