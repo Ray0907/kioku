@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -52,6 +53,7 @@ type model struct {
 	offset                           int
 	cancel, loadCancel               context.CancelFunc
 	loadRevision                     int
+	loadedKey                        string
 	initial                          tea.Cmd
 }
 type resultMsg struct {
@@ -61,6 +63,7 @@ type resultMsg struct {
 }
 type loadMsg struct {
 	revision int
+	key      string
 	messages []message
 	hits     map[int]bool
 	err      error
@@ -134,19 +137,21 @@ func (m *model) requestQuery() tea.Cmd {
 		m.loadCancel()
 	}
 	m.loadRevision++
-	m.messages = nil
-	m.hitIndex = map[int]bool{}
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
 	return queryCmd(ctx, m.db, m.q, m.harness, m.projects, m.limit, m.revision, m.allTime, m.includeSelf)
+}
+
+// loadKey names what the preview shows: the same session under the same query
+// has the same messages and hits, so there is nothing to reload.
+func (m model) loadKey(h hit) string {
+	return h.UID + "\x00" + m.q + "\x00" + strconv.FormatBool(m.includeSelf)
 }
 func (m *model) requestLoad() tea.Cmd {
 	if m.loadCancel != nil {
 		m.loadCancel()
 	}
 	m.loadRevision++
-	m.messages = nil
-	m.hitIndex = map[int]bool{}
 	m.cursor = -1
 	if m.sel >= len(m.rows) {
 		m.sel = max(0, len(m.rows)-1)
@@ -158,10 +163,15 @@ func (m *model) requestLoad() tea.Cmd {
 		m.offset = m.sel - m.listHeight() + 1
 	}
 	if len(m.rows) == 0 {
+		m.messages, m.hitIndex, m.loadedKey = nil, map[int]bool{}, ""
 		return nil
 	}
 	selected := m.rows[m.sel]
 	m.cursor = selected.Index
+	key := m.loadKey(selected)
+	if key == m.loadedKey {
+		return nil
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	m.loadCancel = cancel
 	rev := m.loadRevision
@@ -185,7 +195,7 @@ func (m *model) requestLoad() tea.Cmd {
 				e = err
 			}
 		}
-		return loadMsg{rev, msgs, hits, e}
+		return loadMsg{rev, key, msgs, hits, e}
 	}
 }
 func (m *model) refresh() tea.Cmd {
@@ -197,8 +207,7 @@ func (m *model) refresh() tea.Cmd {
 		m.loadCancel()
 	}
 	m.loadRevision++
-	m.messages = nil
-	m.hitIndex = map[int]bool{}
+	m.messages, m.hitIndex, m.loadedKey = nil, map[int]bool{}, ""
 	return tea.Tick(30*time.Millisecond, func(time.Time) tea.Msg { return debounce(m.revision) })
 }
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -242,6 +251,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				m.messages = x.messages
 				m.hitIndex = x.hits
+				m.loadedKey = x.key
 			}
 		}
 	case tea.MouseMsg:
