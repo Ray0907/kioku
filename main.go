@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -18,6 +19,22 @@ import (
 
 // version is overridden at release time via -ldflags "-X main.version=..."
 var version = "dev"
+
+func init() { version = resolveVersion(version, buildInfo()) }
+
+// resolveVersion falls back to the module version Go records for
+// `go install pkg@vX.Y.Z`, which has no ldflags. A local build reports "(devel)".
+func resolveVersion(v string, info *debug.BuildInfo) string {
+	if v == "dev" && info != nil && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return v
+}
+
+func buildInfo() *debug.BuildInfo {
+	info, _ := debug.ReadBuildInfo()
+	return info
+}
 
 var output io.Writer = os.Stdout
 

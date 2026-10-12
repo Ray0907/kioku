@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- `kioku --version` and the MCP server info report the module version for binaries installed with `go install ...@vX.Y.Z` instead of `dev`.
+
 ## v0.4.0 - 2026-10-12
 
 ### Added
