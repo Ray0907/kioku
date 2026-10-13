@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -22,19 +23,44 @@ func editor() (string, []string) {
 	}
 	return platformEditor()
 }
-func openProject(dir string) string {
+func terminalEditor(name string) bool {
+	switch filepath.Base(name) {
+	case "vim", "nvim", "vi", "nano", "hx", "helix", "micro", "kak":
+		return true
+	}
+	return false
+}
+func openProject(dir string) (*exec.Cmd, bool, string) {
 	label, argv := editor()
 	if len(argv) == 0 {
-		return "no editor configured"
+		return nil, false, "no editor configured"
 	}
 	if _, e := os.Stat(dir); e != nil {
-		return "directory no longer exists: " + dir
+		return nil, false, "directory no longer exists: " + dir
 	}
-	cmd := exec.Command(argv[0], append(argv[1:], dir)...)
-	if e := cmd.Start(); e != nil {
-		return e.Error()
+	terminal := terminalEditor(argv[0])
+	args := argv[1:]
+	if terminal {
+		switch filepath.Base(argv[0]) {
+		case "vim", "nvim", "hx", "helix":
+			args = append(args, ".")
+		}
+	} else {
+		args = append(args, dir)
 	}
-	go cmd.Wait()
+	cmd := exec.Command(argv[0], args...)
+	if terminal {
+		cmd.Dir = dir
+	}
+	return cmd, terminal, label
+}
+
+type openMsg string
+
+func openStatus(dir, label string, err error) string {
+	if err != nil {
+		return err.Error()
+	}
 	return fmt.Sprintf("%s opened %s in %s", time.Now().Format("15:04"), dir, label)
 }
 func copyCommand(s string) string {
