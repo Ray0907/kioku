@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.6.0 - 2026-10-13
 
 ### Added
 - `o` supports terminal editors (vim, nvim, vi, nano, hx, helix, micro, kak) when named by `KIOKU_EDITOR` or `VISUAL`, suspending the TUI until they exit; terminal editors are not auto-detected.
