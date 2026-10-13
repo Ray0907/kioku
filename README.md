@@ -129,12 +129,15 @@ Replace the example ref and token with values from your output. Refs are stable 
 | n / N | next / previous hit in transcript |
 | h / H | add a highlight / clear highlights |
 | v | toggle full transcript |
+| r | sync the index now and re-run the search, to find sessions written since you opened kioku |
 | o | open project in editor |
 | y | copy resume command |
 | Enter | resume selected session in its original directory |
 | Tab / Shift-Tab | cycle all / claude / codex / pi / grok / opencode / cursor |
 | ? | help |
 | Ctrl-C / Esc in results | quit |
+
+Sessions are indexed when kioku starts. To pick up ones written while it is open, press `r` (sync, then re-run the search), or set `KIOKU_SYNC_EVERY` to have kioku re-check in the background, e.g. `KIOKU_SYNC_EVERY=30s kioku`. It is off by default; the minimum is `5s`, and `0` turns it off. Background syncs never move your selection: new messages are counted in the header (`5 new · r refreshes`), and a new query or `r` includes them. They show no progress and ignore errors.
 
 Mouse clicks select/focus rows, click a highlighter tag to remove it, and wheel scrolls. Colors follow terminal background; `KIOKU_THEME=light|dark` overrides detection.
 

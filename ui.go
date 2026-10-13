@@ -54,6 +54,8 @@ type model struct {
 	cancel, loadCancel               context.CancelFunc
 	loadRevision                     int
 	loadedKey                        string
+	synced, syncing, tick            bool
+	fresh                            int
 	initial                          tea.Cmd
 }
 type resultMsg struct {
@@ -72,7 +74,26 @@ type syncMsg struct {
 	done     bool
 	progress string
 	err      error
+	periodic bool
+	added    int
 }
+type syncTick struct{}
+
+// syncEvery is how often the open TUI looks for sessions written by other
+// agents; zero (the default) turns background syncing off. KIOKU_SYNC_EVERY sets it.
+var syncEvery time.Duration
+
+func parseSyncEvery(s string) (time.Duration, error) {
+	if s == "" || s == "0" {
+		return 0, nil
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil || d < 0 || (d != 0 && d < 5*time.Second) {
+		return 0, fmt.Errorf("KIOKU_SYNC_EVERY=%q: use a duration of at least 5s such as 30s or 5m, or 0 to turn it off", s)
+	}
+	return d, nil
+}
+
 type debounce int
 
 func newModel(db *sql.DB, q, h string, projects []string, rows []hit, mouse bool, limit int, includeSelf bool) model {
@@ -80,33 +101,66 @@ func newModel(db *sql.DB, q, h string, projects []string, rows []hit, mouse bool
 	if os.Getenv("KIOKU_THEME") == "dark" || os.Getenv("KIOKU_THEME") == "" && termenv.HasDarkBackground() {
 		p = dark
 	}
-	m := model{db: db, q: q, harness: h, projects: projects, rows: rows, mouse: mouse, limit: limit, includeSelf: includeSelf, pal: p, width: 80, height: 24, cursor: -1, focus: true}
+	m := model{syncing: true, db: db, q: q, harness: h, projects: projects, rows: rows, mouse: mouse, limit: limit, includeSelf: includeSelf, pal: p, width: 80, height: 24, cursor: -1, focus: true}
 	m.initial = m.requestLoad()
 	return m
 }
-func (m model) Init() tea.Cmd { return tea.Batch(startSync(), m.initial) }
-func startSync() tea.Cmd {
-	ch := make(chan syncMsg, 32)
-	go func() {
-		db, err := openDB()
-		if err != nil {
-			ch <- syncMsg{done: true, err: err}
-			close(ch)
-			return
-		}
-		defer db.Close()
-		_, err = syncIndex(db, false, func(i, n int) {
-			if i == 1 || i == n || i%25 == 0 {
-				select {
-				case ch <- syncMsg{progress: fmt.Sprintf("indexing %d/%d", i, n)}:
-				default:
-				}
+func (m model) Init() tea.Cmd { return tea.Batch(startSync(false), m.initial) }
+
+// armTick schedules the next background sync unless syncing is off or one is
+// already scheduled, so there is never more than one timer chain.
+func (m *model) armTick() tea.Cmd {
+	if syncEvery <= 0 || m.tick {
+		return nil
+	}
+	m.tick = true
+	return tea.Tick(syncEvery, func(time.Time) tea.Msg { return syncTick{} })
+}
+
+// startSync does nothing until the runtime runs the command, so tests that
+// build model updates never touch the real index.
+func startSync(periodic bool) tea.Cmd {
+	return func() tea.Msg {
+		ch := make(chan syncMsg, 32)
+		go func() {
+			db, err := openDB()
+			if err != nil {
+				ch <- syncMsg{done: true, err: err, periodic: periodic}
+				close(ch)
+				return
 			}
-		})
-		ch <- syncMsg{done: true, err: err}
-		close(ch)
-	}()
-	return waitSync(ch)
+			defer db.Close()
+			added, err := syncAdded(db, func(i, n int) {
+				if periodic {
+					return
+				}
+				if i == 1 || i == n || i%25 == 0 {
+					select {
+					case ch <- syncMsg{progress: fmt.Sprintf("indexing %d/%d", i, n)}:
+					default:
+					}
+				}
+			})
+			ch <- syncMsg{done: true, err: err, periodic: periodic, added: added}
+			close(ch)
+		}()
+		return waitSync(ch)()
+	}
+}
+
+// syncAdded syncs the index and returns how many messages it gained.
+// syncStats.Messages holds per-agent totals, so the gain is the difference.
+func syncAdded(db *sql.DB, progress func(int, int)) (int, error) {
+	var before int
+	if err := db.QueryRow("SELECT coalesce(sum(msg_count),0) FROM sessions").Scan(&before); err != nil {
+		return 0, err
+	}
+	stats, err := syncIndex(db, false, progress)
+	after := 0
+	for _, n := range stats.Messages {
+		after += n
+	}
+	return max(0, after-before), err
 }
 func waitSync(ch <-chan syncMsg) tea.Cmd {
 	return func() tea.Msg {
@@ -130,6 +184,10 @@ func queryCmd(ctx context.Context, db *sql.DB, q, h string, projects []string, l
 	}
 }
 func (m *model) requestQuery() tea.Cmd {
+	if m.fresh > 0 { // this query reads the data a background sync added
+		m.loadedKey = ""
+	}
+	m.fresh = 0
 	if m.cancel != nil {
 		m.cancel()
 	}
@@ -216,15 +274,36 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = x.Width
 		m.height = x.Height
 	case syncEnvelope:
+		if x.x.periodic {
+			// Background syncs never move the results or interrupt typing: they
+			// only count what is new, and the next query or `r` picks it up.
+			if !x.x.done {
+				return m, waitSync(x.ch)
+			}
+			m.syncing = false
+			if x.x.err == nil {
+				m.fresh += x.x.added
+			}
+			return m, m.armTick()
+		}
 		m.progress = x.x.progress
 		if x.x.done {
 			m.progress = ""
+			m.synced, m.syncing = true, false
 			if x.x.err != nil {
 				m.status = x.x.err.Error()
 			}
-			return m, m.requestQuery()
+			m.loadedKey = ""
+			return m, tea.Batch(m.requestQuery(), m.armTick())
 		}
 		return m, waitSync(x.ch)
+	case syncTick:
+		m.tick = false
+		if m.syncing {
+			return m, m.armTick()
+		}
+		m.syncing = true
+		return m, startSync(true)
 	case debounce:
 		if int(x) != m.revision {
 			return m, nil
@@ -382,6 +461,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.full = !m.full
 		case "?":
 			m.help = !m.help
+		case "r": // sync the index, then re-run the search
+			if m.syncing {
+				return m, nil
+			}
+			m.syncing = true
+			return m, startSync(false)
 		case "o":
 			if len(m.rows) > 0 {
 				dir := m.rows[m.sel].CWD
@@ -721,6 +806,9 @@ func (m model) View() string {
 		}
 		count = fmt.Sprintf("%d messages · %d sessions", len(m.rows), len(sessions))
 	}
+	if m.fresh > 0 && m.progress == "" {
+		count += fmt.Sprintf(" · %d new · r refreshes", m.fresh)
+	}
 	strong := lipgloss.NewStyle().Bold(true)
 	q := "  " + strong.Foreground(lipgloss.Color(m.pal.muted)).Render("kioku") + " ▸ "
 	input := displayInline(m.q)
@@ -843,7 +931,7 @@ func (m model) bgRow(s string, w int, hex string) string {
 }
 func (m model) pageLines(w int) []string {
 	if m.help {
-		return []string{"  focus    ▌ in query = search; ↓ moves to results", "  query    space = AND · quotes = phrase · -word = exclude", "  ↓ / esc search to results    / results to search", "  ↑ ↓     previous / next result", "  n / N   next / previous hit in transcript", "  h / H   add highlighter / clear highlights", "  v       full transcript (hide hit list)", "  o       open directory in editor", "  y       copy resume command", "  enter   exit and resume in original cwd", "  tab     all · claude · codex · pi · grok · opencode · cursor", "  agents   ✻ claude   ◇ codex   π pi   ✕ grok   ▢ opencode   ↖ cursor", "  ctrl+c  quit"}
+		return []string{"  focus    ▌ in query = search; ↓ moves to results", "  query    space = AND · quotes = phrase · -word = exclude", "  ↓ / esc search to results    / results to search", "  ↑ ↓     previous / next result", "  r       sync the index, then re-run the search", "  n / N   next / previous hit in transcript", "  h / H   add highlighter / clear highlights", "  v       full transcript (hide hit list)", "  o       open directory in editor", "  y       copy resume command", "  enter   exit and resume in original cwd", "  tab     all · claude · codex · pi · grok · opencode · cursor", "  agents   ✻ claude   ◇ codex   π pi   ✕ grok   ▢ opencode   ↖ cursor", "  ctrl+c  quit"}
 	}
 	if len(m.rows) == 0 {
 		return nil
