@@ -254,6 +254,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.loadedKey = x.key
 			}
 		}
+	case openMsg:
+		m.status = string(x)
 	case tea.MouseMsg:
 		return m.mouseUpdate(x)
 	case tea.KeyMsg:
@@ -382,7 +384,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.help = !m.help
 		case "o":
 			if len(m.rows) > 0 {
-				m.status = openProject(m.rows[m.sel].CWD)
+				dir := m.rows[m.sel].CWD
+				cmd, terminal, label := openProject(dir)
+				if cmd == nil {
+					m.status = label
+				} else if terminal {
+					return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
+						return openMsg(openStatus(dir, label, err))
+					})
+				} else {
+					err := cmd.Start()
+					if err == nil {
+						go cmd.Wait()
+					}
+					m.status = openStatus(dir, label, err)
+				}
 			}
 		case "y":
 			if len(m.rows) > 0 {
