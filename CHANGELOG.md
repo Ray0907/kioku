@@ -4,6 +4,7 @@
 
 ### Added
 - `o` supports terminal editors (vim, nvim, vi, nano, hx, helix, micro, kak) when named by `KIOKU_EDITOR` or `VISUAL`, suspending the TUI until they exit; terminal editors are not auto-detected.
+- `r` in the results syncs the index and re-runs the search, so sessions written while the TUI is open can be found without restarting. Optional background sync: set `KIOKU_SYNC_EVERY` (e.g. `30s`, minimum `5s`; off by default). New messages are counted in the header (`N new · r refreshes`) without moving the results; background syncs show no progress and ignore errors.
 
 ## v0.5.0 - 2026-10-12
 

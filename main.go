@@ -300,6 +300,11 @@ func run() error {
 	if e != nil {
 		return e
 	}
+	every, e := parseSyncEvery(os.Getenv("KIOKU_SYNC_EVERY"))
+	if e != nil {
+		return e
+	}
+	syncEvery = every
 	m := newModel(db, q, *harness, projects, rows, !*noMouse, *limit, *includeSelf)
 	m.allTime = *allTime
 	options := []tea.ProgramOption{tea.WithAltScreen()}
