@@ -23,6 +23,15 @@ Supports macOS 12+ and Linux (arm64 and amd64).
 
 ## Install
 
+### Homebrew (macOS, Linux)
+
+```sh
+brew install Ray0907/kioku/kioku
+brew upgrade kioku
+```
+
+The [tap](https://github.com/Ray0907/homebrew-kioku) installs the prebuilt release binary. Update a Homebrew install with `brew upgrade`; `kioku update` leaves it to brew.
+
 ### Download (macOS)
 
 Grab the archive for your Mac from [Releases](https://github.com/Ray0907/kioku/releases/latest): `darwin_arm64` for Apple Silicon, `darwin_amd64` for Intel.
