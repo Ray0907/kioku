@@ -1,0 +1,1 @@
+PASS: Agy search/CJK, roles/order, MCP, resume command and cwd, wire recovery, bad workspace rows and cached data, no-op, WAL signals, read-only stores, doctor, failed scan retention, overrides, and deletion.

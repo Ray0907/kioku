@@ -49,7 +49,7 @@ const usage = `Usage:
   kioku help                      Show this help
 
 Flags: --json (one JSON page), --limit N (default 10 for pages, 300 for TUI),
-       --cursor TOKEN (next page), --harness all|claude|codex|pi|grok|opencode|cursor,
+       --cursor TOKEN (next page), --harness all|claude|codex|pi|grok|opencode|cursor|agy,
        --project NAME, -p NAME (repeatable; project basename, case-insensitive),
        --context N (show: before/after, default 3), --query Q (center show hit),
        --all-time (search: include older short-prefix matches),
@@ -71,7 +71,7 @@ JSON: {shown,total,total_sessions,hits,next_cursor,omitted_older} for search;
       Show start,end,hit_index are zero-based like refs; session_total is a count.
       Show message fields: time,role,text,hit,full (when --full).
 Environment: KIOKU_INDEX, KIOKU_CLAUDE_DIR, KIOKU_CODEX_DIR,
-             KIOKU_PI_DIR, KIOKU_GROK_DIR, KIOKU_OPENCODE_DB, KIOKU_CURSOR_DIR,
+             KIOKU_PI_DIR, KIOKU_GROK_DIR, KIOKU_OPENCODE_DB, KIOKU_CURSOR_DIR, KIOKU_AGY_DIR,
              KIOKU_EDITOR, KIOKU_THEME=light|dark,
              KIOKU_DEBUG_TIMING=1; CLAUDE_CONFIG_DIR, CODEX_HOME,
              PI_CODING_AGENT_DIR; HOME, XDG_CACHE_HOME, XDG_DATA_HOME, VISUAL.
@@ -138,7 +138,7 @@ func run() error {
 	full := fs.Bool("full", false, "show selected message without truncation")
 	sessions := fs.Bool("sessions", false, "group by session")
 	noMouse := fs.Bool("no-mouse", false, "disable mouse")
-	harness := fs.String("harness", "all", "all, claude, codex, pi, grok, opencode or cursor")
+	harness := fs.String("harness", "all", "all, claude, codex, pi, grok, opencode, cursor or agy")
 	var projects projectFlags
 	fs.Var(&projects, "project", "filter project basename (repeatable)")
 	fs.Var(&projects, "p", "filter project basename (repeatable)")
@@ -228,7 +228,7 @@ func run() error {
 	if !show && *showQuery != "" {
 		return fmt.Errorf("--query requires show")
 	}
-	if *harness != "all" && *harness != "claude" && *harness != "codex" && *harness != "pi" && *harness != "grok" && *harness != "opencode" && *harness != "cursor" {
+	if *harness != "all" && *harness != "claude" && *harness != "codex" && *harness != "pi" && *harness != "grok" && *harness != "opencode" && *harness != "cursor" && *harness != "agy" {
 		return fmt.Errorf("invalid harness %q", *harness)
 	}
 	db, e := openDB()
@@ -244,7 +244,7 @@ func run() error {
 		if e != nil {
 			return e
 		}
-		for _, h := range []string{"claude", "codex", "pi", "grok", "opencode", "cursor"} {
+		for _, h := range []string{"claude", "codex", "pi", "grok", "opencode", "cursor", "agy"} {
 			fmt.Fprintf(output, "%s: %d messages\n", h, s.Messages[h])
 		}
 		fmt.Fprintf(output, "%d files, %d changed, %d skipped\n", s.Files, s.Changed, s.Skipped)
@@ -337,6 +337,9 @@ func execSession(h hit) error {
 	case "opencode":
 		name = "opencode"
 		args = []string{"opencode", "--session", h.SessionID}
+	case "agy":
+		name = "agy"
+		args = []string{"agy", "--conversation", h.SessionID}
 	case "cursor":
 		name = "cursor-agent"
 		args = []string{"cursor-agent", "--resume", h.SessionID}

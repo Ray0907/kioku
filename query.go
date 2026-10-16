@@ -80,6 +80,8 @@ func resumeArgv(h, id, path, cwd string) []string {
 		return []string{"codex", "resume", id}
 	case "opencode":
 		return []string{"opencode", "--session", id}
+	case "agy":
+		return []string{"agy", "--conversation", id}
 	case "cursor":
 		return []string{"cursor-agent", "--resume", id}
 	case "grok":

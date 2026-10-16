@@ -2,7 +2,7 @@
 
 <sub><i>kioku</i> (記憶) is Japanese for "memory".</sub>
 
-**Search every Claude Code, Codex, Pi, Grok, OpenCode and Cursor CLI session on macOS or Linux, down to the message, in English, Chinese, Japanese and Korean.**
+**Search every Claude Code, Codex, Pi, Grok, OpenCode, Cursor CLI and Antigravity CLI session on macOS or Linux, down to the message, in English, Chinese, Japanese and Korean.**
 
 <p align="center">
   <img src="assets/demo.gif" alt="kioku demo: search for checkout, move through the results, jump between hits in the transcript, then search 結帳 with a highlighter and open the help screen" width="880">
@@ -171,10 +171,13 @@ unrelated turns without interpreting the query.
 | Grok | `KIOKU_GROK_DIR` | — | `~/.grok/sessions` |
 | OpenCode | `KIOKU_OPENCODE_DB` | `$XDG_DATA_HOME/opencode/opencode.db` | `~/.local/share/opencode/opencode.db` |
 | Cursor CLI | `KIOKU_CURSOR_DIR` | — | `~/.cursor/chats` |
+| Antigravity CLI | `KIOKU_AGY_DIR` | — | `~/.gemini/antigravity-cli` |
 
 Empty variables count as unset; a `~/` prefix expands to `$HOME`. kioku overrides point directly at the transcript root; native variables point at the parent config directory. A missing explicit root indexes nothing for that harness, without falling back to the default. Grok sessions are directories containing `chat_history.jsonl` and optional `summary.json`; metadata comes from the summary, with cwd/native ID falling back to the URL-decoded parent/session directory names. Only the history file is tracked for incremental appends. Use `--harness grok` to filter them. OpenCode's override points to the SQLite database, not a directory; both v1 and v2 sessions are read in read-only mode, including live WAL messages. SQLite may update transient `-shm` reader/WAL-index coordination fields; DB/WAL data is never written or checkpointed. If loading fails, cached OpenCode sessions are retained while other harnesses continue syncing. V2 takes precedence for duplicate IDs; subagent sessions and reasoning are skipped. Changed sessions are replaced using session/message timestamps rather than file appends. Use `--harness opencode` to filter them; resume runs `opencode --session <id>` from the session's directory. Set `KIOKU_DEBUG_TIMING=1` for startup/sync/query/snippet/render timings on stderr.
 
 Cursor CLI sessions are `~/.cursor/chats/<md5(cwd)>/<session-id>/{meta.json,store.db}`. Only JSON user/assistant message blobs are read, in rowid order (an approximation: the store has no recorded message order). Binary graph nodes and Cursor IDE `state.vscdb` stores are ignored; sessions without a metadata cwd are skipped. Session start uses metadata `createdAtMs`; messages use `store.db` mtime because they have no timestamps. Changes to either file's mtime/size replace the whole session. Use `--harness cursor`; resume runs `cursor-agent --resume <id>` from the session's directory.
+
+Antigravity CLI uses `conversation_summaries.db` and `conversations/<id>.db` in its data directory. kioku reads these SQLite stores in read-only mode, with live WAL data. It reads user, assistant, and tool steps in step order. It skips child sessions and system steps. The metadata timestamp and step count control each index update; no file timestamp is used. Use `--harness agy` to select these sessions. Resume runs `agy --conversation <id>` from the session directory.
 
 Search tokenization uses [fts5-cjk](https://github.com/Ray0907/fts5-cjk), statically linked under its original license in `internal/cjk/`.
 

@@ -28,7 +28,7 @@ func doctorHome(t *testing.T) string {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	for _, env := range []string{"KIOKU_INDEX", "KIOKU_CLAUDE_DIR", "KIOKU_CODEX_DIR", "KIOKU_PI_DIR", "KIOKU_GROK_DIR", "KIOKU_OPENCODE_DB", "KIOKU_CURSOR_DIR", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "PI_CODING_AGENT_DIR", "XDG_CACHE_HOME", "XDG_DATA_HOME", "KIOKU_DEBUG_TIMING"} {
+	for _, env := range []string{"KIOKU_INDEX", "KIOKU_CLAUDE_DIR", "KIOKU_CODEX_DIR", "KIOKU_PI_DIR", "KIOKU_GROK_DIR", "KIOKU_OPENCODE_DB", "KIOKU_CURSOR_DIR", "KIOKU_AGY_DIR", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "PI_CODING_AGENT_DIR", "XDG_CACHE_HOME", "XDG_DATA_HOME", "KIOKU_DEBUG_TIMING"} {
 		t.Setenv(env, "")
 	}
 	return home
@@ -58,8 +58,8 @@ func doctorJSON(t *testing.T) (map[string]doctorResult, error) {
 		}
 		got[c.Name] = c
 	}
-	if len(got) != 8 {
-		t.Fatalf("expected six sources, index and sqlite; got %v", got)
+	if len(got) != 9 {
+		t.Fatalf("expected seven sources, index and sqlite; got %v", got)
 	}
 	if c := got["sqlite"]; !c.OK || c.Optional || !strings.Contains(c.Detail, "FTS5") || !strings.Contains(c.Detail, "cjk") {
 		t.Fatalf("sqlite probe failed: %+v", c)
@@ -465,7 +465,7 @@ func TestDoctorOutput(t *testing.T) {
 			}
 			if jsonMode {
 				var checks []map[string]any
-				if err := json.Unmarshal([]byte(out), &checks); err != nil || len(checks) != 8 {
+				if err := json.Unmarshal([]byte(out), &checks); err != nil || len(checks) != 9 {
 					t.Fatalf("JSON shape: %q, err=%v", out, err)
 				}
 				for _, c := range checks {
@@ -479,7 +479,7 @@ func TestDoctorOutput(t *testing.T) {
 				}
 			} else {
 				lines := strings.Split(strings.TrimSpace(out), "\n")
-				if len(lines) != 8 || !strings.HasPrefix(lines[0], "- Claude Code  not found (optional:") || !strings.HasPrefix(lines[7], "✓ sqlite  ") {
+				if len(lines) != 9 || !strings.HasPrefix(lines[0], "- Claude Code  not found (optional:") || !strings.HasPrefix(lines[6], "- Antigravity CLI  not found (optional:") || !strings.HasPrefix(lines[8], "✓ sqlite  ") {
 					t.Fatalf("text shape: %q", out)
 				}
 			}

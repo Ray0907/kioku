@@ -40,10 +40,12 @@ func runDoctor(args []string) error {
 	checks := []doctorCheck{}
 	sourceRoots := roots()
 	sessions := 0
-	for _, source := range []struct{ harness, name string }{{"claude", "Claude Code"}, {"codex", "Codex"}, {"pi", "Pi"}, {"grok", "Grok"}, {"opencode", "OpenCode"}, {"cursor", "Cursor CLI"}} {
+	for _, source := range []struct{ harness, name string }{{"claude", "Claude Code"}, {"codex", "Codex"}, {"pi", "Pi"}, {"grok", "Grok"}, {"opencode", "OpenCode"}, {"cursor", "Cursor CLI"}, {"agy", "Antigravity CLI"}} {
 		path := sourceRoots[source.harness]
 		if source.harness == "opencode" {
 			path = opencodePath()
+		} else if source.harness == "agy" {
+			path = filepath.Join(agyDir(), "conversation_summaries.db")
 		}
 		c := doctorCheck{Name: source.name}
 		info, err := os.Stat(path)
@@ -57,6 +59,15 @@ func runDoctor(args []string) error {
 				if source.harness == "opencode" {
 					unit = "sessions"
 					count, err = doctorOpencode(path)
+				} else if source.harness == "agy" {
+					unit = "sessions"
+					var db *sql.DB
+					var cleanup func()
+					db, cleanup, err = doctorReadDB(path)
+					if err == nil {
+						err = db.QueryRow(`SELECT count(*) FROM conversation_summaries WHERE parent_conversation_id IS NULL OR parent_conversation_id=''`).Scan(&count)
+						cleanup()
+					}
 				} else if !info.IsDir() {
 					err = fmt.Errorf("not a directory")
 				} else {

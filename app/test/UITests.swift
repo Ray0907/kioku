@@ -19,6 +19,7 @@ final class KiokuUITests: XCTestCase {
             "KIOKU_CLAUDE_DIR": home + "/.claude/projects", "KIOKU_CODEX_DIR": home + "/.codex/sessions",
             "KIOKU_PI_DIR": home + "/.pi/agent/sessions", "KIOKU_GROK_DIR": home + "/grok-home/.grok/sessions",
             "KIOKU_CURSOR_DIR": home + "/cursor-home/.cursor/chats", "KIOKU_OPENCODE_DB": home + "/opencode-home/.local/share/opencode/opencode.db",
+            "KIOKU_AGY_DIR": home + "/agy-home/.gemini/antigravity-cli",
             "KIOKU_TERMINAL_LAUNCHER": home + "/bin/terminal-stub", "KIOKU_EDITOR_LAUNCHER": home + "/bin/editor-stub",
             "KIOKU_SYSTEM_EDITOR": home + "/Default Editor.app",
             "KIOKU_REDUCE_MOTION": "0", "KIOKU_REDUCE_TRANSPARENCY": "0", "KIOKU_INCREASE_CONTRAST": "0",
@@ -152,6 +153,7 @@ final class KiokuUITests: XCTestCase {
         }
         XCTAssertFalse(app.buttons["filter-opencode"].exists)
         XCTAssertFalse(app.buttons["filter-cursor"].exists)
+        XCTAssertFalse(app.buttons["filter-agy"].exists)
         XCTAssertEqual(app.staticTexts["result-summary"].value as? String, "6 messages · ranked")
         assertInside(app.staticTexts["result-summary"], pane, window: window)
         let summary = app.staticTexts["result-summary"]
@@ -331,16 +333,18 @@ final class KiokuUITests: XCTestCase {
     @MainActor func testFilterHorizontalOverflow() {
         let app = launch(overrides: ["KIOKU_TEST_WINDOW_WIDTH": "800"])
         defer { app.terminate() }
-        waitForLabel(app.staticTexts["result-summary"], prefix: "10 indexed sessions")
+        waitForLabel(app.staticTexts["result-summary"], prefix: "11 indexed sessions")
         let window = app.windows.firstMatch
         XCTAssertEqual(window.frame.width, 800)
         let scroll = app.scrollViews["filter-scroll"]
         assertInside(app.buttons["filter-all"], scroll, window: window)
-        XCTAssertGreaterThan(app.buttons["filter-cursor"].frame.maxX, scroll.frame.maxX)
+        XCTAssertGreaterThan(app.buttons["filter-agy"].frame.maxX, scroll.frame.maxX)
         scroll.hover()
         scroll.scroll(byDeltaX: -300, deltaY: 0)
         assertInside(app.buttons["filter-cursor"], scroll, window: window)
         XCTAssertEqual(app.buttons["filter-cursor"].title, "Cursor 1")
+        assertInside(app.buttons["filter-agy"], scroll, window: window)
+        XCTAssertEqual(app.buttons["filter-agy"].title, "Agy 1")
         screenshot(app, name: "filter-horizontal-overflow")
         scroll.scroll(byDeltaX: 300, deltaY: 0)
         assertInside(app.buttons["filter-all"], scroll, window: window)

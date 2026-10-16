@@ -298,7 +298,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, NSToolba
     private var completedSearchGeneration = -1
     private var renderedSelectionGeneration = -1
     #endif
-    private let harnesses = [("all", "All"), ("claude", "Claude"), ("codex", "Codex"), ("pi", "Pi"), ("grok", "Grok"), ("opencode", "OpenCode"), ("cursor", "Cursor")]
+    private let harnesses = [("all", "All"), ("claude", "Claude"), ("codex", "Codex"), ("pi", "Pi"), ("grok", "Grok"), ("opencode", "OpenCode"), ("cursor", "Cursor"), ("agy", "Agy")]
     private var harness = "all"
     private var hits: [SearchHit] = []
     private var conversation: Conversation?

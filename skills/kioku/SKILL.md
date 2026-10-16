@@ -1,17 +1,19 @@
 ---
 name: kioku
-description: Use when the user refers to earlier work from any coding-agent session (Claude Code, Codex, Pi, Grok, OpenCode, Cursor CLI) — "last time", "we discussed", "where did I", "that session where", 之前、上次、那時候 — or needs a past decision, error, command, or the session to resume.
+description: Use when the user refers to earlier work from any coding-agent session (Claude Code, Codex, Pi, Grok, OpenCode, Cursor CLI, Antigravity CLI) — "last time", "we discussed", "where did I", "that session where", 之前、上次、那時候 — or needs a past decision, error, command, or the session to resume.
 ---
 
 # kioku: search past agent sessions
 
 ## Overview
 
-`kioku` indexes every local Claude Code, Codex, Pi, Grok, OpenCode and Cursor CLI session and searches them at message level, including Chinese, Japanese and Korean. Use it instead of grepping `~/.claude`, `~/.codex`, `~/.pi`, `~/.grok`, `~/.cursor/chats` or the OpenCode SQLite database: it knows each store's format, ranks hits, and gives the resume command. It is read-only. Grok's `resume:` line is only `cd <cwd>`; no session-resume flag is assumed.
+`kioku` indexes every local Claude Code, Codex, Pi, Grok, OpenCode, Cursor CLI and Antigravity CLI session and searches them at message level, including Chinese, Japanese and Korean. Use it instead of grepping `~/.claude`, `~/.codex`, `~/.pi`, `~/.grok`, `~/.cursor/chats` or the OpenCode and Antigravity CLI SQLite stores: it knows each store's format, ranks hits, and gives the resume command. It is read-only. Grok's `resume:` line is only `cd <cwd>`; no session-resume flag is assumed.
 
 Output is paged (10 per page) so it never floods your context. Go wide to narrow, and only fetch the next page when you need it.
 
 Source roots honor `KIOKU_CLAUDE_DIR`, `KIOKU_CODEX_DIR`, `KIOKU_PI_DIR` first, then `$CLAUDE_CONFIG_DIR/projects`, `$CODEX_HOME/sessions`, `$PI_CODING_AGENT_DIR/sessions`, then the default stores under `$HOME`. Grok uses `KIOKU_GROK_DIR` or `~/.grok/sessions` (no native config variable). OpenCode uses `KIOKU_OPENCODE_DB`, then `$XDG_DATA_HOME/opencode/opencode.db`, then `~/.local/share/opencode/opencode.db`. Both SQLite layouts and live WAL messages are read-only; subagent sessions and reasoning are skipped. OpenCode resumes with `opencode --session <id>` from its cwd. Cursor CLI uses `KIOKU_CURSOR_DIR` or `~/.cursor/chats`; only JSON user/assistant blobs are indexed read-only, not binary graph nodes or IDE `state.vscdb` stores. Its rowid order is approximate, messages use DB mtime, and either metadata/DB mtime or size changing replaces the session. Sessions without a cwd are skipped. Cursor resumes with `cursor-agent --resume <id>` from its cwd. Empty variables are unset; `~/` expands to `$HOME`. A missing explicit root yields no sessions for that harness, not a fallback to its default store.
+
+Antigravity CLI uses `KIOKU_AGY_DIR` or `~/.gemini/antigravity-cli`. kioku reads `conversation_summaries.db` and `conversations/<id>.db` in read-only mode, with live WAL data. It skips child sessions and system steps. Use `--harness agy` to select these sessions. Resume runs `agy --conversation <id>` from the session directory.
 
 ## Workflow
 
@@ -45,7 +47,7 @@ Don't read the raw JSONL. `show --full` has everything.
 - The user may have worked in another language. Try both, e.g. `checkout` and `結帳`.
 - Try synonyms before concluding nothing exists.
 - Conversation hits rank above tool output. Kioku tool calls/results are hidden by default; `--include-self` restores them for a search or `--sessions` run. User/assistant mentions stay searchable.
-- If you know the project, add `-p <project>` (its directory name). It removes most decoys in one step. `--harness claude|codex|pi|grok|opencode|cursor` narrows by agent. `--json` gives structured output with `next_cursor`.
+- If you know the project, add `-p <project>` (its directory name). It removes most decoys in one step. `--harness claude|codex|pi|grok|opencode|cursor|agy` narrows by agent. `--json` gives structured output with `next_cursor`.
 
 ## Rules
 
