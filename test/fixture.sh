@@ -155,6 +155,49 @@ SQL
 cp "$cursor/store.db" "${cursor%/*}/no-cwd/store.db"
 printf '%s\n' 'IDE store is out of scope' > "$home/cursor-home/.cursor/state.vscdb"
 
+# Antigravity CLI uses one protobuf step store per conversation.
+mkdir -p "$home/agy-home/.gemini/antigravity-cli/conversations"
+python3 - "$home/agy-home/.gemini/antigravity-cli" <<'PY'
+import json,pathlib,sqlite3,sys
+root=pathlib.Path(sys.argv[1])
+def varint(n):
+ out=bytearray()
+ while n>127: out.append((n&127)|128); n>>=7
+ return bytes(out)+bytes([n])
+def num(k,n): return varint(k<<3)+varint(n)
+def blob(k,b):
+ if isinstance(b,str): b=b.encode()
+ return varint(k<<3|2)+varint(len(b))+b
+def stamp(): return blob(5,blob(1,num(1,1790503200)+num(2,123000000)))
+def user(s): return stamp()+blob(19,blob(2,s))
+steps=[
+ (14,user('agyteatoken: 查詢茶葉資料')),
+ (101,user('agyhiddeninjection')),
+ (15,stamp()+blob(20,blob(1,'agyanswer: tea notes'))),
+ (15,stamp()+blob(20,blob(1,'')+blob(7,blob(1,'call-demo')+blob(2,'bash')+blob(3,'{"command":"cat tea.txt"}')))),
+ (132,stamp()+blob(140,blob(1,blob(2,'cat tea.txt'))+blob(2,blob(1,'agyresult: tea found')))),
+ (14,user('agytailtoken')+num(90,3)+varint(91<<3|1)+bytes(8)+varint(92<<3|5)+bytes(4)),
+ (14,user('agybadtruncated')+b'\x80'),
+ (14,blob(19,b'\x12\xff')),
+ (14,blob(19,blob(2,b'\xff'))),
+ (14,b'\x00'),
+ (14,b'\x80'*11),
+ (14,blob(19,num(2,12))),
+ (999,user('agyunknownstep')),
+]
+with sqlite3.connect(root/'conversation_summaries.db') as db:
+ db.execute('PRAGMA journal_mode=WAL')
+ db.execute('CREATE TABLE conversation_summaries(conversation_id TEXT PRIMARY KEY,title TEXT,preview TEXT,step_count INTEGER,last_modified_time TEXT,workspace_uris TEXT,parent_conversation_id TEXT)')
+ for sid,parent,count in [('agy-demo','',len(steps)),('agy-child','agy-demo',1),('agy-empty','',0),('agy-missing','',1),('agy-bad-workspace','',1)]:
+  db.execute('INSERT INTO conversation_summaries VALUES(?,?,?,?,?,?,?)',(sid,'subagent-demo' if parent else 'Tea notes','',count,'2026-09-27 10:00:00+00:00','bad JSON' if sid=='agy-bad-workspace' else json.dumps(['file:///work/agy%20demo','file:///work/other']),parent))
+  if sid=='agy-missing': continue
+  with sqlite3.connect(root/'conversations'/f'{sid}.db') as conv:
+   conv.execute('PRAGMA journal_mode=WAL')
+   conv.execute('CREATE TABLE steps(idx INTEGER PRIMARY KEY,step_type INTEGER,step_payload BLOB)')
+   data=steps if sid=='agy-demo' else [(14,user('agychildtoken'))] if parent else [(14,user('agybadworkspacetoken'))] if sid=='agy-bad-workspace' else []
+   conv.executemany('INSERT INTO steps VALUES(?,?,?)',[(i,t,p) for i,(t,p) in enumerate(data)])
+PY
+
 # Relocated copies exercise native config dirs, including spaces in paths.
 mkdir -p "$home/relocated/claude config" "$home/relocated/codex config" "$home/relocated/pi config"
 cp -R "$home/.claude/projects" "$home/relocated/claude config/projects"

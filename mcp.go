@@ -29,7 +29,7 @@ func mcpTools() []mcpTool {
 	tools := []mcpTool{
 		{Name: "kioku_search", Description: "Search local agent messages. Empty query browses recent sessions; snippets are capped. Repeat the same arguments with next_cursor for more hits.", InputSchema: mcpSchema{Required: []string{"query"}, Properties: map[string]map[string]any{
 			"query":        {"type": "string"},
-			"harness":      {"type": "string", "enum": []string{"all", "claude", "codex", "pi", "grok", "opencode", "cursor"}},
+			"harness":      {"type": "string", "enum": []string{"all", "claude", "codex", "pi", "grok", "opencode", "cursor", "agy"}},
 			"project":      {"type": "string", "minLength": 1, "description": "Project basename, case-insensitive."},
 			"limit":        {"type": "integer", "minimum": 1, "default": 10},
 			"cursor":       {"type": "string"},
@@ -38,7 +38,7 @@ func mcpTools() []mcpTool {
 		}}},
 		{Name: "kioku_sessions", Description: "Find local agent sessions ranked by best hit, with compact snippets and topics. Empty query browses recent sessions.", InputSchema: mcpSchema{Required: []string{"query"}, Properties: map[string]map[string]any{
 			"query":   {"type": "string"},
-			"harness": {"type": "string", "enum": []string{"all", "claude", "codex", "pi", "grok", "opencode", "cursor"}},
+			"harness": {"type": "string", "enum": []string{"all", "claude", "codex", "pi", "grok", "opencode", "cursor", "agy"}},
 			"project": {"type": "string", "minLength": 1, "description": "Project basename, case-insensitive."},
 			"limit":   {"type": "integer", "minimum": 1, "default": 10},
 			"cursor":  {"type": "string"},
@@ -119,7 +119,7 @@ func mcpCall(params json.RawMessage) (string, error) {
 		return "", fmt.Errorf("context must be nonnegative and less than the maximum integer")
 	}
 	switch a.Harness {
-	case "all", "claude", "codex", "pi", "grok", "opencode", "cursor":
+	case "all", "claude", "codex", "pi", "grok", "opencode", "cursor", "agy":
 	default:
 		return "", fmt.Errorf("invalid harness %q", a.Harness)
 	}

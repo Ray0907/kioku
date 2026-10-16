@@ -317,11 +317,19 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 	// DB sources are discovered by session timestamps, never by file size/mtime.
 	opencode, err := loadOpencode()
 	opencodeFailed := err != nil
-	if opencodeFailed {
-		fmt.Fprintln(os.Stderr, "kioku: opencode:", err)
+	agy, agyErr := loadAgy()
+	agyFailed := agyErr != nil
+	for _, source := range []struct {
+		harness string
+		err     error
+	}{{"opencode", err}, {"agy", agyErr}} {
+		if source.err == nil {
+			continue
+		}
+		fmt.Fprintln(os.Stderr, "kioku: "+source.harness+":", source.err)
 		stats.Skipped++
 		// A failed scan is not evidence that previously indexed sessions disappeared.
-		rows, e := db.Query("SELECT path FROM sessions WHERE harness='opencode'")
+		rows, e := db.Query("SELECT path FROM sessions WHERE harness=?", source.harness)
 		if e != nil {
 			return stats, e
 		}
@@ -330,7 +338,7 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 			if e = rows.Scan(&p); e != nil {
 				break
 			}
-			files[p] = "opencode"
+			files[p] = source.harness
 		}
 		if e == nil {
 			e = rows.Err()
@@ -346,6 +354,21 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 		opSessions = opencode.sessions
 		for p := range opSessions {
 			files[p] = "opencode"
+			paths = append(paths, p)
+		}
+		sort.Strings(paths)
+	}
+	agySessions := map[string]agySession{}
+	if agy != nil {
+		agySessions = agy.sessions
+		for p, src := range agySessions {
+			files[p] = "agy"
+			if src.err != nil {
+				fmt.Fprintf(os.Stderr, "kioku: agy: %s: %v\n", p, src.err)
+				stats.Skipped++
+				agyFailed = true // Keep cached rows for invalid metadata, also on rebuild.
+				continue
+			}
 			paths = append(paths, p)
 		}
 		sort.Strings(paths)
@@ -368,7 +391,7 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 			}
 		}
 	}
-	if rebuild && !opencodeFailed {
+	if rebuild && !opencodeFailed && !agyFailed {
 		for _, table := range []string{"messages", "sessions", "sources"} {
 			if _, e = tx.Exec("DELETE FROM " + table); e != nil {
 				return stats, e
@@ -405,12 +428,19 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 		if progress != nil {
 			progress(i+1, len(paths))
 		}
-		src, dbSource := opSessions[p]
+		src, opencodeSource := opSessions[p]
+		agySrc, agySource := agySessions[p]
+		dbSource := opencodeSource || agySource
 		cursorSource := files[p] == "cursor"
 		mtime, size, inode, updated := int64(0), int64(0), int64(0), int64(0)
 		v, ok := old[p]
-		ok = ok && !rebuild // Failed OpenCode scans retain rows; other sources still rebuild.
-		if dbSource {
+		ok = ok && !rebuild // Failed DB scans retain rows; other sources still rebuild.
+		if agySource {
+			updated, size = agySrc.updated, agySrc.steps
+			if ok && v.updated == updated && v.size == size {
+				continue
+			}
+		} else if opencodeSource {
 			updated = src.updated
 			inode = 1 // DB sources use this slot for layout, so v1 -> v2 also reparses.
 			if src.v2 {
@@ -457,7 +487,9 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 		var s session
 		var nextOffset int64
 		var err error
-		if dbSource {
+		if agySource {
+			s, err = agy.parse(agySrc)
+		} else if opencodeSource {
 			s, err = opencode.parse(src)
 		} else if cursorSource {
 			s, err = parseCursor(p, updated)
@@ -466,7 +498,8 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 		}
 		if err != nil {
 			// No messages means a successful read with nothing to index.
-			if migrating && !errors.Is(err, errNoMessages) {
+			// Agy has no old schema rows; a missing conversation must not block migration.
+			if migrating && !agySource && !errors.Is(err, errNoMessages) {
 				return stats, fmt.Errorf("index migration: %s: %w", p, err)
 			}
 			stats.Skipped++

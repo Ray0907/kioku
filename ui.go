@@ -378,7 +378,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if key == "tab" || key == "shift+tab" {
-			hs := []string{"all", "claude", "codex", "pi", "grok", "opencode", "cursor"}
+			hs := []string{"all", "claude", "codex", "pi", "grok", "opencode", "cursor", "agy"}
 			for i, h := range hs {
 				if h == m.harness {
 					step := 1
@@ -629,6 +629,8 @@ func agentMark(h string) string {
 		return "▢"
 	case "cursor":
 		return "↖"
+	case "agy":
+		return "a"
 	default:
 		return "?"
 	}
@@ -931,7 +933,7 @@ func (m model) bgRow(s string, w int, hex string) string {
 }
 func (m model) pageLines(w int) []string {
 	if m.help {
-		return []string{"  focus    ▌ in query = search; ↓ moves to results", "  query    space = AND · quotes = phrase · -word = exclude", "  ↓ / esc search to results    / results to search", "  ↑ ↓     previous / next result", "  r       sync the index, then re-run the search", "  n / N   next / previous hit in transcript", "  h / H   add highlighter / clear highlights", "  v       full transcript (hide hit list)", "  o       open directory in editor", "  y       copy resume command", "  enter   exit and resume in original cwd", "  tab     all · claude · codex · pi · grok · opencode · cursor", "  agents   ✻ claude   ◇ codex   π pi   ✕ grok   ▢ opencode   ↖ cursor", "  ctrl+c  quit"}
+		return []string{"  focus    ▌ in query = search; ↓ moves to results", "  query    space = AND · quotes = phrase · -word = exclude", "  ↓ / esc search to results    / results to search", "  ↑ ↓     previous / next result", "  r       sync the index, then re-run the search", "  n / N   next / previous hit in transcript", "  h / H   add highlighter / clear highlights", "  v       full transcript (hide hit list)", "  o       open directory in editor", "  y       copy resume command", "  enter   exit and resume in original cwd", "  tab     all · claude · codex · pi · grok · opencode · cursor · agy", "  agents   ✻ claude   ◇ codex   π pi   ✕ grok   ▢ opencode   ↖ cursor   a agy", "  ctrl+c  quit"}
 	}
 	if len(m.rows) == 0 {
 		return nil
