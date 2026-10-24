@@ -59,7 +59,15 @@ func contextText(ctx context.Context, db *sql.DB, dir string, now time.Time) (st
 	// Sessions nobody typed into (another agent's run, an empty start) say nothing about where work stopped.
 	var asked []contextSession
 	for _, s := range found {
-		err := db.QueryRowContext(ctx, `SELECT text FROM messages WHERE session_uid=? AND role='user' AND self=0 ORDER BY idx DESC LIMIT 1`, s.uid).Scan(&s.asked)
+		topic, err := sessionTopic(ctx, db, s.uid)
+		if err != nil {
+			return "", err
+		}
+		if automatedPrompt(topic) {
+			continue
+		}
+		s.topic = topic
+		err = db.QueryRowContext(ctx, `SELECT text FROM messages WHERE session_uid=? AND role='user' AND self=0 ORDER BY idx DESC LIMIT 1`, s.uid).Scan(&s.asked)
 		if err == sql.ErrNoRows {
 			continue
 		}
@@ -92,22 +100,29 @@ func contextText(ctx context.Context, db *sql.DB, dir string, now time.Time) (st
 	var b strings.Builder
 	fmt.Fprintf(&b, "kioku: recent sessions in this project, across your coding agents (%d of %d from the last %d days):\n\n", len(out), len(asked), contextDays)
 	for _, s := range out {
-		topic, e := sessionTopic(ctx, db, s.uid)
-		if e != nil {
-			return "", e
-		}
 		var reply string
 		err := db.QueryRowContext(ctx, `SELECT text FROM messages WHERE session_uid=? AND role='asst' AND self=0 ORDER BY idx DESC LIMIT 1`, s.uid).Scan(&reply)
 		if err != nil && err != sql.ErrNoRows {
 			return "", err
 		}
-		fmt.Fprintf(&b, "- %s · %s ago · %q · `%s`\n  last asked: %q\n", s.harness, ageAt(s.updated, now), topic, shortID(s.uid), firstLine(s.asked))
+		fmt.Fprintf(&b, "- %s · %s ago · %q · `%s`\n  last asked: %q\n", s.harness, ageAt(s.updated, now), s.topic, shortID(s.uid), firstLine(s.asked))
 		if reply = firstLine(reply); reply != "" {
 			fmt.Fprintf(&b, "  last reply: %q\n", reply)
 		}
 	}
 	b.WriteString("\nRead one with the kioku_show tool, or run `kioku show <ref>`.\n")
 	return b.String(), nil
+}
+
+// automatedPrompt spots sessions another agent opened to review a change: they never say where
+// your own work stopped. ponytail: a prefix list, extend it when a new reviewer shows up.
+func automatedPrompt(topic string) bool {
+	for _, p := range []string{"Review this change", "# Review Guidelines"} {
+		if strings.HasPrefix(topic, p) {
+			return true
+		}
+	}
+	return false
 }
 
 func firstLine(s string) string {

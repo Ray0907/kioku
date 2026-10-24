@@ -98,3 +98,17 @@ func TestContextSkipsSessionsWithoutQuestionAndKeepsEveryHarness(t *testing.T) {
 		t.Errorf("want 5 sessions, got %d:\n%s", n, got)
 	}
 }
+
+func TestContextSkipsReviewerSessions(t *testing.T) {
+	db := ctxDB(t)
+	addSession(t, db, "r1", "claude", "/w/app", time.Minute, "user", "Review this change for security vulnerabilities. Changed files: a.go")
+	addSession(t, db, "r2", "pi", "/w/app", 2*time.Minute, "user", "# Review Guidelines\nYou are acting as a code reviewer")
+	addSession(t, db, "real", "claude", "/w/app", time.Hour, "user", "review the login page copy")
+	got, _ := contextText(context.Background(), db, "/w/app", ctxNow)
+	if strings.Contains(got, "security vulnerabilities") || strings.Contains(got, "Review Guidelines") {
+		t.Errorf("automated reviewer sessions must be skipped:\n%s", got)
+	}
+	if !strings.Contains(got, "review the login page copy") {
+		t.Errorf("a person's own review request must stay:\n%s", got)
+	}
+}
