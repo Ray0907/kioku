@@ -1,0 +1,10 @@
+#!/bin/sh
+# SessionStart hook: prints where agents left off in this project. A kioku older than
+# `context` would treat the word as a search and flood the session, so only output that
+# starts with the expected header is passed on. Never fails a session start.
+command -v kioku >/dev/null 2>&1 || exit 0
+out=$(kioku context 2>/dev/null)
+case "$out" in
+"kioku: recent sessions"*) printf '%s\n' "$out" ;;
+esac
+exit 0

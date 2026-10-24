@@ -574,12 +574,13 @@ func removeSource(tx *sql.Tx, p string) error {
 	}
 	return nil
 }
-func age(ts string) string {
+func age(ts string) string { return ageAt(ts, time.Now()) }
+func ageAt(ts string, now time.Time) string {
 	t, e := time.Parse(time.RFC3339Nano, ts)
 	if e != nil {
 		return ""
 	}
-	d := time.Since(t)
+	d := now.Sub(t)
 	if d < time.Hour {
 		return fmt.Sprintf("%dm", max(0, int(d.Minutes())))
 	}
