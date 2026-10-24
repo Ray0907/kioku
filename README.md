@@ -202,6 +202,8 @@ For any stdio MCP client, add this to its MCP configuration (adapt the outer key
 }
 ```
 
+The plugin also adds a `SessionStart` hook that runs `kioku context`: every new Claude Code session starts with the project's recent sessions (agent, age, topic, last question and reply, and a ref for `kioku show`). It prints nothing, and never blocks a session, when there is no history or no index. Run `kioku context` in a project folder to preview it.
+
 `kioku mcp` uses newline-delimited JSON-RPC 2.0 over stdin/stdout, with protocol version `2025-06-18`. Logs go only to stderr. Normal `KIOKU_*` source and index environment variables still apply. The server can read your local transcripts: enable it only in trusted clients and quote only the history needed for the task.
 
 For harnesses without MCP or skills, put this in `AGENTS.md`:

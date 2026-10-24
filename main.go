@@ -45,6 +45,7 @@ const usage = `Usage:
   kioku index [--rebuild]         Sync sources and print counts
   kioku doctor [--json]           Check sources, index and SQLite without changes
   kioku update [--check]          Install the latest release over this binary
+  kioku context                   Where agents left off in this project (for session-start hooks)
   kioku mcp                      Serve read-only MCP tools over stdio
   kioku help                      Show this help
 
@@ -114,6 +115,9 @@ func run() error {
 			return fmt.Errorf("mcp takes no arguments")
 		}
 		return serveMCP(os.Stdin, output)
+	}
+	if len(args) > 0 && args[0] == "context" {
+		return runContext(args[1:])
 	}
 	if len(args) > 0 && args[0] == "help" {
 		fmt.Fprint(output, usage)
