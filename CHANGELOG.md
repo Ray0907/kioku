@@ -1,9 +1,10 @@
 # Changelog
 
-## Unreleased
+## v0.7.0 - 2026-10-24
 
 ### Added
-- `kioku context`: prints where your agents left off in the current project (up to 5 sessions from the last 14 days, each with its last question and the first line of its last reply; every agent gets its latest session in first). Prints nothing when there is no history. The Claude Code plugin runs it from a SessionStart hook (`startup|clear`) so a new session starts knowing the project's recent work.
+- Antigravity CLI (`agy`) sessions are indexed and searchable with `--harness agy`; resume runs `agy --conversation <id>`.
+- `kioku context`: prints where your agents left off in the current project (up to 5 sessions from the last 14 days, each with its last question and the first line of its last reply; every agent gets its latest session in first). Prints nothing when there is no history. The Claude Code plugin runs it from a SessionStart hook (`startup|clear`) so a new session starts knowing the project's recent work. Sessions another agent opened to review a change are left out.
 
 ## v0.6.0 - 2026-10-13
 
