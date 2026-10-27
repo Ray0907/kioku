@@ -18,7 +18,7 @@ Antigravity CLI uses `KIOKU_AGY_DIR` or `~/.gemini/antigravity-cli`. kioku reads
 ## Workflow
 
 0. **Already know the project?** From memory, the cwd, or the user: start with `-p <project>` on every command below. It is the fastest filter.
-1. **Which sessions?** `kioku --sessions <query>`: one line per session with hits by role, e.g. `4 hits (you 2 · asst 1 · tool 1)`, and its best ref. Under each session, `topic:` is its first user message, which tells you what the session was for. Judge decoys from `topic:` and the role counts without opening them. A security review, an implementation brief, or tool-only hits usually just quote the term, so skip them unless nothing else fits.
+1. **Which sessions?** `kioku --sessions <query>`: one line per session with hits by role, e.g. `4 hits (you 2 · asst 1 · tool 1)`, and its best ref. Under each session, `topic:` is its first user message, which tells you what the session was for. Judge decoys from `topic:` and the role counts without opening them. More than one page of sessions? Run it again with `--facets` to see counts per project and harness, then narrow with `-p`, `--harness`, `--since` or `--until` instead of paging. A security review, an implementation brief, or tool-only hits usually just quote the term, so skip them unless nothing else fits.
 2. **Which messages?** `kioku <query>`: one hit per line, each starting with a ref like `2c998a27ab4c:54`.
 3. **What was said?** Run the `expand:` command it prints (`kioku show <ref> --query "<q>"`). You get the messages around the hit, the hit marked `>` and trimmed around the match, plus cwd and the `resume:` command.
    - `--full`: the whole hit message, no truncation.
