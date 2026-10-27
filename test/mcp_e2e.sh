@@ -58,8 +58,8 @@ assert init['protocolVersion']=='2025-06-18' and init['serverInfo']['name']=='ki
 assert by_id['mock-string-id']['result']=={}
 passed('initialize and ping preserve numeric/string request IDs')
 tools={tool['name']:tool for tool in by_id[2]['result']['tools']}
-expected={'kioku_search':({'query','harness','project','limit','cursor','all_time','include_self'},'query'),
- 'kioku_sessions':({'query','harness','project','limit','cursor'},'query'),
+expected={'kioku_search':({'query','harness','project','limit','cursor','all_time','include_self','since','until','facets','max_per_session'},'query'),
+ 'kioku_sessions':({'query','harness','project','limit','cursor','since','until','facets'},'query'),
  'kioku_show':({'ref','context','query','full','all','cursor'},'ref')}
 assert tools.keys()==expected.keys()
 for name,(properties,required) in expected.items():
@@ -68,7 +68,7 @@ for name,(properties,required) in expected.items():
  assert set(schema['properties'])==properties and schema['required']==[required] and schema['additionalProperties'] is False,schema
  assert schema['properties'][required]['type']=='string'
  for key in properties:
-  assert schema['properties'][key]['type']==('boolean' if key in {'all_time','include_self','full','all'} else 'integer' if key in {'context','limit'} else 'string')
+  assert schema['properties'][key]['type']==('boolean' if key in {'all_time','include_self','full','all','facets'} else 'integer' if key in {'context','limit','max_per_session'} else 'string')
 passed('three read-only tools expose complete, strict input schemas; no rebuild')
 def page(i):
  result=by_id[i]['result']; assert not result.get('isError',False),result

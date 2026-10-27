@@ -83,3 +83,25 @@ Use a fresh synthetic `HOME` from `./test/fixture.sh` for every run. Run all com
 > The fixture contains targeted cases, not literally every malformed structure above. Add a focused generated fixture only when an E2E case needs that input shape.
 
 Source contracts: `SPEC.md`, `PRODUCT.md`, and `mock/index.html`.
+
+## Date range, facets and per-session cap
+
+Written before the code. Each item is asserted by `test/range_e2e.sh` (artifact: `test/range-e2e-result.json`).
+
+- [x] Defaults do not move: with none of the new flags, JSON for search, `--sessions`, empty-query browse, short prefix and common word is byte-identical to v0.7.0; the index schema is identical.
+- [x] Boundary: a message at `00:00:00`, one at `00:00:00.5`, and one at `23:59:59.999` the day before fall on the correct side of `--since DATE`; `--until DATE` covers the whole day and excludes the next midnight.
+- [x] Timestamp forms: offsets (`+08:00`), 9-digit fractions and `Z` stamps compare as the same instant.
+- [x] Empty and unparseable timestamps never match a range, and facets count them as `(unknown)` instead of failing.
+- [x] Timezone: date-only bounds use the local zone (`TZ=Asia/Taipei` differs from `UTC`); week facet buckets use the same zone, so a bucket count equals the total for `--since W --until W+6`.
+- [x] Relative forms: `Nd`, `Nw`, `today`, `yesterday` resolve to local midnight; `--until Nd` excludes that day.
+- [x] Invalid input: garbage, impossible dates, `7x`, empty value, negative value and `--since` after `--until` exit nonzero with a message (MCP: tool error); a same-day range is valid and may be empty.
+- [x] Short-prefix window: an explicit range replaces the 7-day window and drops `omitted_older`.
+- [x] Common-word fast path honours the range; paging returns each hit once; sessions mode counts agree.
+- [x] Cursors: valid for the same range, rejected for a different one; repeating a relative-range call gives the same cursor.
+- [x] Browse (empty query) filters sessions by their last message.
+- [x] Silent ignore: `--since`/`--facets`/`--max-per-session` on a terminal print a page instead of opening a TUI that ignores them; `show` and `index` reject them; `--since X`, `--since=X` and flags before the query parse the same.
+- [x] Facets: off by default; counts sum to total on hit, sessions, browse and common-word paths; lists past 20 projects or 52 weeks end in `(other)`; weeks start on Monday.
+- [x] Cap: opt-in; total, paging and the best-ranked hit stay correct in SQL; works on the common-word path and with a range; invalid values and `--sessions` are errors.
+- [x] MCP: new arguments exist on `kioku_search` / `kioku_sessions` only (`max_per_session` on search only), match CLI output, and bad values are tool errors.
+- [x] Cost: on 20,000 messages, facets, cap and a range each stay under max(1.5 s, 8x the plain search).
+- [x] Read-only: source transcripts stay byte-identical.

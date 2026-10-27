@@ -22,8 +22,13 @@ type pageKey struct {
 	Projects                                   []string
 	Limit, Context                             int
 	JSON, AllTime, All, Full, NoMouse, Rebuild bool
-	IncludeSelf                                bool `json:",omitempty"`
+	IncludeSelf                                bool   `json:",omitempty"`
+	Since, Until                               string `json:",omitempty"`
+	Facets                                     bool   `json:",omitempty"`
+	MaxPerSession                              int    `json:",omitempty"`
 }
+
+func (k pageKey) rng() timeRange { return timeRange{k.Since, k.Until} }
 
 func (k pageKey) fingerprint() string {
 	b, _ := json.Marshal(k)
@@ -138,6 +143,7 @@ type hitPage struct {
 	OmittedOlder  int          `json:"omitted_older,omitempty"`
 	Hits          []compactHit `json:"hits"`
 	NextCursor    string       `json:"next_cursor,omitempty"`
+	Facets        *facets      `json:"facets,omitempty"`
 }
 type roleCounts struct {
 	You  int `json:"you"`
@@ -162,6 +168,7 @@ type sessionPage struct {
 	OmittedOlder int              `json:"omitted_older,omitempty"`
 	Sessions     []compactSession `json:"sessions"`
 	NextCursor   string           `json:"next_cursor,omitempty"`
+	Facets       *facets          `json:"facets,omitempty"`
 }
 
 func shellQuote(s string) string {
@@ -187,6 +194,7 @@ func renderHits(p hitPage, asJSON bool, q string) error {
 	if p.OmittedOlder > 0 {
 		fmt.Fprintf(output, "%d older matches omitted (--all-time)\n", p.OmittedOlder)
 	}
+	renderFacets(p.Facets)
 	return nil
 }
 func renderSessions(p sessionPage, asJSON bool) error {
@@ -204,28 +212,35 @@ func renderSessions(p sessionPage, asJSON bool) error {
 	if p.OmittedOlder > 0 {
 		fmt.Fprintf(output, "%d older matches omitted (--all-time)\n", p.OmittedOlder)
 	}
+	renderFacets(p.Facets)
 	return nil
 }
 
 // The same FTS predicate (including the short-prefix date bound) feeds counts and pages.
-func matchSource(ctx context.Context, db *sql.DB, q, harness string, projects, names []string, allTime, includeSelf bool) (string, []any, int, error) {
+// score ranks hits inside a session when k.MaxPerSession is set.
+func matchSource(ctx context.Context, db *sql.DB, k pageKey, names []string, score string) (string, []any, int, error) {
+	harness := k.Harness
 	from := `FROM messages_fts JOIN messages m ON m.id=messages_fts.rowid `
-	if harness != "" && harness != "all" || len(projects) > 0 {
+	if harness != "" && harness != "all" || len(k.Projects) > 0 || k.Facets {
 		from += `JOIN sessions s ON s.uid=m.session_uid `
 	}
-	from += `WHERE messages_fts MATCH ? ` + selfFilter(includeSelf)
-	args := []any{toFTS(q)}
+	from += `WHERE messages_fts MATCH ? ` + selfFilter(k.IncludeSelf)
+	args := []any{toFTS(k.Query)}
 	if harness != "" && harness != "all" {
 		from += `AND s.harness=? `
 		args = append(args, harness)
 	}
-	clause, values := projectPredicate(projects, names)
+	clause, values := projectPredicate(k.Projects, names)
+	from += clause
+	args = append(args, values...)
+	clause, values = rangePredicate(k.rng())
 	from += clause
 	args = append(args, values...)
 	omitted := 0
-	if shortLatin(q) && !allTime {
+	// An explicit range replaces the implicit short-prefix window.
+	if shortLatin(k.Query) && !k.AllTime && !k.rng().active() {
 		var latest string
-		if e := db.QueryRowContext(ctx, `SELECT coalesce(max(m.ts),'') FROM messages m WHERE 1 `+selfFilter(includeSelf)).Scan(&latest); e != nil {
+		if e := db.QueryRowContext(ctx, `SELECT coalesce(max(m.ts),'') FROM messages m WHERE 1 `+selfFilter(k.IncludeSelf)).Scan(&latest); e != nil {
 			return "", nil, 0, e
 		}
 		if t, e := time.Parse(time.RFC3339Nano, latest); e == nil {
@@ -237,7 +252,90 @@ func matchSource(ctx context.Context, db *sql.DB, q, harness string, projects, n
 			args = append(args, cutoff)
 		}
 	}
+	if k.MaxPerSession > 0 {
+		// Rank inside each session, then keep the first N. Doing this in SQL keeps
+		// total, paging and cursors consistent with what is shown.
+		inner := `SELECT id FROM (SELECT id,row_number() OVER (PARTITION BY session_uid ORDER BY (role='tool'),score,ts DESC,id DESC) rn FROM (SELECT m.id,m.session_uid,m.role,m.ts,` + score + ` score ` + from + `)) WHERE rn<=? `
+		from += `AND m.id IN (` + inner + `) `
+		args = append(append(args, args...), k.MaxPerSession)
+	}
 	return from, args, omitted, nil
+}
+
+type facetCount struct {
+	Value string `json:"value"`
+	Count int    `json:"count"`
+}
+type facets struct {
+	Project []facetCount `json:"project"`
+	Harness []facetCount `json:"harness"`
+	Week    []facetCount `json:"week,omitempty"`
+}
+
+// Counts per project, harness and week (local time, starting Monday, like
+// --since/--until) over the same FROM clause as the page. It needs the
+// sessions table joined as s. Groups beyond the limit are summed into
+// "(other)", so every list adds up to the total.
+func facetCounts(ctx context.Context, db *sql.DB, from string, args []any, distinct, weeks bool) (*facets, error) {
+	count := `count(*)`
+	if distinct {
+		count = `count(DISTINCT m.session_uid)`
+	}
+	group := func(expr, order string, limit int) ([]facetCount, error) {
+		rows, e := db.QueryContext(ctx, `SELECT `+expr+` v,`+count+` c `+from+`GROUP BY v ORDER BY `+order, args...)
+		if e != nil {
+			return nil, e
+		}
+		defer rows.Close()
+		out, other := []facetCount{}, 0
+		for rows.Next() {
+			var f facetCount
+			if e = rows.Scan(&f.Value, &f.Count); e != nil {
+				return nil, e
+			}
+			if len(out) < limit {
+				out = append(out, f)
+			} else {
+				other += f.Count
+			}
+		}
+		if other > 0 {
+			out = append(out, facetCount{"(other)", other})
+		}
+		return out, rows.Err()
+	}
+	var f facets
+	var e error
+	if f.Project, e = group(`s.project`, `c DESC,v`, 20); e != nil {
+		return nil, e
+	}
+	if f.Harness, e = group(`s.harness`, `c DESC,v`, 20); e != nil {
+		return nil, e
+	}
+	if weeks {
+		if f.Week, e = group(`coalesce(date(m.ts,'localtime','weekday 0','-6 days'),'(unknown)')`, `v DESC`, 52); e != nil {
+			return nil, e
+		}
+	}
+	return &f, nil
+}
+func renderFacets(f *facets) {
+	if f == nil {
+		return
+	}
+	line := func(name string, list []facetCount) {
+		if len(list) == 0 {
+			return
+		}
+		parts := make([]string, len(list))
+		for i, x := range list {
+			parts[i] = fmt.Sprintf("%s %d", x.Value, x.Count)
+		}
+		fmt.Fprintf(output, "%s: %s\n", name, strings.Join(parts, " · "))
+	}
+	line("by project", f.Project)
+	line("by harness", f.Harness)
+	line("by week", f.Week)
 }
 func fetchPageHits(ctx context.Context, db *sql.DB, query string, args ...any) ([]hit, error) {
 	rows, e := db.QueryContext(ctx, query, args...)
@@ -276,10 +374,19 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitP
 		clause, values := projectPredicate(k.Projects, names)
 		from += clause
 		args = append(args, values...)
+		clause, values = rangePredicate(k.rng())
+		from += clause
+		args = append(args, values...)
 		if e := db.QueryRowContext(ctx, `SELECT count(*) `+from, args...).Scan(&p.Total); e != nil {
 			return p, e
 		}
 		p.TotalSessions = p.Total
+		if k.Facets {
+			var e error
+			if p.Facets, e = facetCounts(ctx, db, from, args, false, true); e != nil {
+				return p, e
+			}
+		}
 		if offset > p.Total {
 			return p, fmt.Errorf("cursor past end of results")
 		}
@@ -291,7 +398,19 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitP
 			}
 		}
 	} else {
-		from, args, omitted, e := matchSource(ctx, db, q, harness, k.Projects, names, k.AllTime, k.IncludeSelf)
+		common := false
+		if !shortLatin(q) {
+			var e error
+			if common, e = commonQuery(ctx, db, q, toFTS(q)); e != nil {
+				return p, e
+			}
+		}
+		// A capped common-word query ranks by recency inside SQL; the newest-first fast path cannot cap.
+		score := `bm25(messages_fts)`
+		if common {
+			score = `0`
+		}
+		from, args, omitted, e := matchSource(ctx, db, k, names, score)
 		if e != nil {
 			return p, e
 		}
@@ -300,21 +419,19 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitP
 		if e = db.QueryRowContext(ctx, `SELECT count(*),coalesce(sum(m.role!='tool'),0),count(DISTINCT m.session_uid) `+from, args...).Scan(&p.Total, &conversations, &p.TotalSessions); e != nil {
 			return p, e
 		}
+		if k.Facets {
+			if p.Facets, e = facetCounts(ctx, db, from, args, false, true); e != nil {
+				return p, e
+			}
+		}
 		if offset > p.Total {
 			return p, fmt.Errorf("cursor past end of results")
 		}
 		if offset < p.Total {
-			common := false
-			if !shortLatin(q) {
-				common, e = commonQuery(ctx, db, q, toFTS(q))
-				if e != nil {
-					return p, e
-				}
-			}
-			if common {
+			if common && k.MaxPerSession == 0 {
 				ids := []int64{}
 				if offset < conversations {
-					found, err := newestMatches(ctx, db, toFTS(q), harness, k.Projects, names, false, k.IncludeSelf, min(conversations, offset+limit))
+					found, err := newestMatches(ctx, db, toFTS(q), harness, k.Projects, names, false, k.IncludeSelf, k.rng(), min(conversations, offset+limit))
 					if err != nil {
 						return p, err
 					}
@@ -322,7 +439,7 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitP
 				}
 				if offset+limit > conversations && p.Total > conversations {
 					toolOffset := max(0, offset-conversations)
-					found, err := newestMatches(ctx, db, toFTS(q), harness, k.Projects, names, true, k.IncludeSelf, min(p.Total-conversations, offset+limit-conversations))
+					found, err := newestMatches(ctx, db, toFTS(q), harness, k.Projects, names, true, k.IncludeSelf, k.rng(), min(p.Total-conversations, offset+limit-conversations))
 					if err != nil {
 						return p, err
 					}
@@ -340,7 +457,7 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitP
 				}
 			} else {
 				selectTier := func(role string, n, skip int) error {
-					query := `WITH ranked AS MATERIALIZED (SELECT m.id,m.ts,bm25(messages_fts) score ` + from + `AND m.role` + role + ` ORDER BY score,m.ts DESC,m.id DESC LIMIT ? OFFSET ?) SELECT ` + hitColumns + ` FROM ranked r JOIN messages m ON m.id=r.id JOIN sessions s ON s.uid=m.session_uid ORDER BY r.score,r.ts DESC,r.id DESC`
+					query := `WITH ranked AS MATERIALIZED (SELECT m.id,m.ts,` + score + ` score ` + from + `AND m.role` + role + ` ORDER BY score,m.ts DESC,m.id DESC LIMIT ? OFFSET ?) SELECT ` + hitColumns + ` FROM ranked r JOIN messages m ON m.id=r.id JOIN sessions s ON s.uid=m.session_uid ORDER BY r.score,r.ts DESC,r.id DESC`
 					found, err := fetchPageHits(ctx, db, query, append(args, n, skip)...)
 					matches = append(matches, found...)
 					return err
@@ -407,12 +524,21 @@ func compactSessions(ctx context.Context, db *sql.DB, k pageKey, offset int) (se
 		clause, values := projectPredicate(k.Projects, names)
 		from += clause
 		args = append(args, values...)
+		clause, values = rangePredicate(k.rng())
+		from += clause
+		args = append(args, values...)
 		if e := db.QueryRowContext(ctx, `SELECT count(*) `+from, args...).Scan(&p.Total); e != nil {
 			return p, e
 		}
+		if k.Facets {
+			var e error
+			if p.Facets, e = facetCounts(ctx, db, from, args, false, true); e != nil {
+				return p, e
+			}
+		}
 		query = `SELECT s.uid,s.harness,s.project,m.ts,m.text,1,m.idx,(m.role='user'),(m.role='asst'),(m.role='tool') ` + from + `ORDER BY (m.role='tool'),m.ts DESC,m.id DESC LIMIT ? OFFSET ?`
 	} else {
-		from, values, omitted, e := matchSource(ctx, db, q, harness, k.Projects, names, k.AllTime, k.IncludeSelf)
+		from, values, omitted, e := matchSource(ctx, db, k, names, "")
 		if e != nil {
 			return p, e
 		}
@@ -420,6 +546,11 @@ func compactSessions(ctx context.Context, db *sql.DB, k pageKey, offset int) (se
 		args = values
 		if e = db.QueryRowContext(ctx, `SELECT count(DISTINCT m.session_uid) `+from, args...).Scan(&p.Total); e != nil {
 			return p, e
+		}
+		if k.Facets {
+			if p.Facets, e = facetCounts(ctx, db, from, args, true, false); e != nil {
+				return p, e
+			}
 		}
 		common := false
 		if !shortLatin(q) {
