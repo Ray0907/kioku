@@ -112,6 +112,9 @@ kioku --limit 5 snapshot                  # short refs + snippets, at most 5 hit
 kioku -p kioku --limit 5 snapshot        # exact project basename, case-insensitive; repeat -p for more
 kioku --limit 5 --cursor TOKEN snapshot   # next page, same query and flags
 kioku --sessions --limit 5 snapshot       # conversation-bearing sessions first; per-role hit counts
+kioku --since 7d snapshot                 # date range, local time: 2026-10-20, 7d, 2w, today, yesterday
+kioku --since 2026-10-01 --until 2026-10-07 --facets snapshot  # plus hit counts per project, harness, week
+kioku --max-per-session 2 snapshot        # at most 2 hits from any one session
 kioku show a1b2c3d4e5f6:12 --query "snapshot" --context 3  # center the hit, with surrounding messages
 kioku show a1b2c3d4e5f6:12 --full         # entire marked message; context remains compact
 kioku show a1b2c3d4e5f6 --context 0 --all    # walk the entire session, 10 messages/page

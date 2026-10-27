@@ -47,6 +47,7 @@ Don't read the raw JSONL. `show --full` has everything.
 - The user may have worked in another language. Try both, e.g. `checkout` and `結帳`.
 - Try synonyms before concluding nothing exists.
 - Conversation hits rank above tool output. Kioku tool calls/results are hidden by default; `--include-self` restores them for a search or `--sessions` run. User/assistant mentions stay searchable.
+- Remember roughly when? Add `--since` / `--until` (`2026-10-20`, `7d`, `2w`, `today`, `yesterday`; local time; a date as `--until` covers that whole day). Too many hits? Add `--facets` to see counts per project, harness and week, then narrow with `-p`, `--harness` or a date range and search again. One session flooding the list? Add `--max-per-session 2`. MCP: `since`, `until`, `facets` on `kioku_search` and `kioku_sessions`; `max_per_session` on `kioku_search`.
 - If you know the project, add `-p <project>` (its directory name). It removes most decoys in one step. `--harness claude|codex|pi|grok|opencode|cursor|agy` narrows by agent. `--json` gives structured output with `next_cursor`.
 
 ## Rules

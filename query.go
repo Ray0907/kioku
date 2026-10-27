@@ -226,7 +226,7 @@ func selfFilter(includeSelf bool) string {
 
 // Pick by timestamp, then verify exactly against FTS in rowid ranges. Rowids
 // are only seeks into FTS, never a recency limit or a ranking signal.
-func newestMatches(ctx context.Context, db *sql.DB, match, harness string, projects, names []string, tool, includeSelf bool, want int) ([]int64, error) {
+func newestMatches(ctx context.Context, db *sql.DB, match, harness string, projects, names []string, tool, includeSelf bool, rng timeRange, want int) ([]int64, error) {
 	limit := 400
 	for {
 		// ponytail: the ts index scans past the other role; add partial role/ts indexes only if tool-heavy corpora make this slow.
@@ -249,7 +249,10 @@ func newestMatches(ctx context.Context, db *sql.DB, match, harness string, proje
 			query += `m.role!='tool' `
 		}
 		clause, values := projectPredicate(projects, names)
-		query += clause + selfFilter(includeSelf) + `ORDER BY m.ts DESC,m.id DESC LIMIT ?`
+		query += clause + selfFilter(includeSelf)
+		args = append(args, values...)
+		clause, values = rangePredicate(rng)
+		query += clause + `ORDER BY m.ts DESC,m.id DESC LIMIT ?`
 		args = append(args, values...)
 		args = append(args, limit)
 		rows, e := db.QueryContext(ctx, query, args...)
@@ -388,12 +391,12 @@ func search(ctx context.Context, db *sql.DB, q, harness string, projects []strin
 		sqlq += `ORDER BY m.ts DESC,m.id DESC LIMIT ?`
 		args = append(args, limit)
 	} else if common {
-		ids, e := newestMatches(ctx, db, match, harness, projects, names, false, includeSelf, limit)
+		ids, e := newestMatches(ctx, db, match, harness, projects, names, false, includeSelf, timeRange{}, limit)
 		if e != nil {
 			return nil, e
 		}
 		if len(ids) < limit {
-			tools, err := newestMatches(ctx, db, match, harness, projects, names, true, includeSelf, limit-len(ids))
+			tools, err := newestMatches(ctx, db, match, harness, projects, names, true, includeSelf, timeRange{}, limit-len(ids))
 			if err != nil {
 				return nil, err
 			}
