@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.8.0 - 2026-11-02
 
 ### Changed
 - `stats` is now a subcommand like `doctor` and `context`, so a bare `kioku stats` no longer searches for that word; use `kioku -- stats` or `kioku '"stats"'`.
