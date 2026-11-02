@@ -41,7 +41,7 @@ var output io.Writer = os.Stdout
 const usage = `Usage:
   kioku [flags] [query]           Search (TUI on a terminal, compact pages otherwise)
   kioku --sessions [query]        Matching sessions, ranked by best hit
-  kioku show <ref|session-id>     Message context or start of session
+  kioku show <ref|session-id>     Message context or start of session (--format md for Markdown)
   kioku index [--rebuild]         Sync sources and print counts
   kioku doctor [--json]           Check sources, index and SQLite without changes
   kioku update [--check]          Install the latest release over this binary
@@ -61,6 +61,7 @@ Flags: --json (one JSON page), --limit N (default 10 for pages, 300 for TUI),
        --facets (add hit counts per project, harness and week; sessions: project, harness),
        --max-per-session N (search: keep the N best hits of each session),
        --all (show: whole session), --full (show: untruncated hit),
+       --format md (show: Markdown to paste into an issue or PR; not with --json),
        --no-mouse, --rebuild (index), --version, --help, -h.
 Query: space means AND; "black tea" is a phrase; -word excludes;
        bare words are prefixes. Use -- to search flag-like text:
@@ -147,6 +148,7 @@ func run() error {
 	all := fs.Bool("all", false, "show full session")
 	full := fs.Bool("full", false, "show selected message without truncation")
 	sessions := fs.Bool("sessions", false, "group by session")
+	format := fs.String("format", "text", "show output: text or md")
 	since := fs.String("since", "", "only messages at or after this date")
 	until := fs.String("until", "", "only messages before the end of this date")
 	facets := fs.Bool("facets", false, "add hit counts per project, harness and week")
@@ -158,7 +160,7 @@ func run() error {
 	fs.Var(&projects, "p", "filter project basename (repeatable)")
 	ver := fs.Bool("version", false, "print version")
 	// Flags may precede or follow the query.
-	valued := map[string]bool{"--limit": true, "--cursor": true, "--context": true, "--query": true, "--project": true, "-p": true, "--since": true, "--until": true, "--max-per-session": true}
+	valued := map[string]bool{"--limit": true, "--cursor": true, "--context": true, "--query": true, "--project": true, "-p": true, "--since": true, "--until": true, "--max-per-session": true, "--format": true}
 	var words []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -253,6 +255,12 @@ func run() error {
 	if show && (*sessions || len(words) != 1) {
 		return fmt.Errorf("show requires one reference (and cannot use --sessions)")
 	}
+	if *format != "text" && *format != "md" {
+		return fmt.Errorf("--format must be text or md")
+	}
+	if *format == "md" && (!show || *jsonFlag) {
+		return fmt.Errorf("--format md applies to show and cannot be combined with --json")
+	}
 	if !show && *all {
 		return fmt.Errorf("--all requires show")
 	}
@@ -314,6 +322,9 @@ func run() error {
 			page, err := compactShow(ctx, db, key, offset)
 			if err != nil {
 				return err
+			}
+			if *format == "md" {
+				return renderShowMD(page)
 			}
 			return renderShow(page, *jsonFlag)
 		case "sessions":

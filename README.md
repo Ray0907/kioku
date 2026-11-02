@@ -118,6 +118,7 @@ kioku --max-per-session 2 snapshot        # at most 2 hits from any one session
 kioku show a1b2c3d4e5f6:12 --query "snapshot" --context 3  # center the hit, with surrounding messages
 kioku show a1b2c3d4e5f6:12 --full         # entire marked message; context remains compact
 kioku show a1b2c3d4e5f6 --context 0 --all    # walk the entire session, 10 messages/page
+kioku show a1b2c3d4e5f6:12 --format md        # Markdown to paste into an issue or PR
 kioku --json --limit 5 snapshot          # one JSON object with hits and next_cursor
 ```
 

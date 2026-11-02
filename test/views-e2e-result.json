@@ -1,0 +1,11 @@
+{
+  "baseline": "6a64f08",
+  "pass": 4,
+  "fail": 0,
+  "checks": [
+    "show text and --json output is byte-identical to 6a64f08 for hit, context, query, --all and --full",
+    "md renders heading, metadata, resume command, quoted messages and the hit marker, repeatably",
+    "md of a whole session has no hit marker",
+    "invalid --format values, md with --json and md outside show are errors with no output"
+  ]
+}

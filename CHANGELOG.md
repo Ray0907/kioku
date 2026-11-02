@@ -6,7 +6,9 @@
 - `--since` / `--until` (CLI) and `since` / `until` (MCP `kioku_search`, `kioku_sessions`) limit a search to a date range. Values are `YYYY-MM-DD`, RFC3339, `Nd`, `Nw`, `today` or `yesterday` in local time; a date as `--until` covers that whole day. An explicit range replaces the 7-day window for short Latin prefixes. Invalid values and `--since` after `--until` are errors. On a terminal these flags print a page instead of opening the TUI, which has no range control.
 - `--facets` / `facets`: hit counts per project, harness and week (local time, Monday start, so a week bucket matches the same `--since`/`--until` dates) for the same search, so an agent can narrow the next query. `--sessions` returns project and harness counts. Lists past 20 projects or 52 weeks are summed into an `(other)` entry, so counts always add up to the total. Off by default.
 - `--max-per-session N` / `max_per_session`: keep at most N hits of each session. Unlimited by default.
+- `kioku show <ref> --format md` prints the same window as Markdown (heading, metadata, resume command, each message quoted, the hit marked) for pasting into an issue or PR. Text and `--json` output are unchanged. `--format` other than `text` or `md`, or `md` with `--json` or outside `show`, is an error.
 - `test/range_e2e.sh` checks these features and compares default output with v0.7.0; it writes `test/range-e2e-result.json`.
+- `test/views_e2e.sh` checks `show --format md` against the previous commit's text and JSON output; it writes `test/views-e2e-result.json`.
 
 ## v0.7.0 - 2026-10-24
 
