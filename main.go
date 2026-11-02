@@ -236,7 +236,7 @@ func run() error {
 	if e != nil {
 		return e
 	}
-	// The TUI has no range, facet or cap controls; never launch it with flags it would ignore.
+	// The TUI starts with no range and has no facet or cap controls; never launch it with flags it would ignore.
 	filtered := rng.active() || *facets || setCap
 	oneShot := show || *sessions || *jsonFlag || *cursor != "" || filtered || !isatty.IsTerminal(os.Stdout.Fd())
 	if !setLimit {
@@ -350,7 +350,7 @@ func run() error {
 			return renderHits(page, *jsonFlag, q)
 		}
 	}
-	rows, e := search(context.Background(), db, q, *harness, projects, *limit, *allTime, *includeSelf)
+	rows, e := search(context.Background(), db, q, *harness, projects, *limit, *allTime, *includeSelf, timeRange{})
 	if e != nil {
 		return e
 	}

@@ -1,6 +1,6 @@
 {
   "baseline": "6a64f08",
-  "pass": 12,
+  "pass": 14,
   "fail": 0,
   "checks": [
     "show text and --json output is byte-identical to 6a64f08 for hit, context, query, --all and --full",
@@ -14,6 +14,8 @@
     "stats ranges and last-active times follow local time",
     "an empty range prints zero totals and empty lists",
     "stats rejects positional arguments, unknown harnesses and bad ranges with no output",
-    "a search for the word stats still works after the subcommand: kioku -- stats"
+    "a search for the word stats still works after the subcommand: kioku -- stats",
+    "TUI d sets the range with the CLI bounds: header shows it and the counts equal the CLI total for --since 3d --until yesterday, in UTC and Asia/Taipei",
+    "TUI shows the empty-range message for a range with no matches, D restores the original results, and a bad value keeps them and says why"
   ]
 }

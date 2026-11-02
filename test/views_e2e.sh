@@ -19,8 +19,9 @@ if [ -z "$BASE_BIN" ]; then
 	BASE_BIN="$TMP/base/kioku"
 fi
 
+command -v tmux >/dev/null || { echo "tmux is required for the TUI checks" >&2; exit 1; }
 python3 - "$BIN" "$BASE_BIN" "$BASE_REF" "$TMP" "$ROOT/test" <<'PY'
-import json,os,pathlib,sqlite3,subprocess,sys
+import json,os,pathlib,re,shlex,sqlite3,subprocess,sys,time
 binary,base_bin,base_ref,tmp,test=sys.argv[1:]
 tmp=pathlib.Path(tmp); test=pathlib.Path(test)
 home=tmp/'home'
@@ -97,6 +98,61 @@ for args in (['extra'],['--harness','nope'],['--since','bogus'],['--since','2026
 passed('stats rejects positional arguments, unknown harnesses and bad ranges with no output')
 hits=js('--','stats'); assert 'hits' in hits
 passed('a search for the word stats still works after the subcommand: kioku -- stats')
+
+# ---- TUI date range, in a real terminal (tmux) on the demo fixture --------------------
+demo=tmp/'demo'
+subprocess.run([sys.executable,str(test.parent/'demo/make_demo_home.py'),str(demo)],check=True,stdout=subprocess.DEVNULL)
+SESSION='kioku-views-e2e'
+def tmux(*a): return subprocess.run(['tmux',*a],text=True,capture_output=True,timeout=20)
+def screen(): return tmux('capture-pane','-p','-t',SESSION).stdout
+def wait_for(pattern,timeout=15):
+	end=time.time()+timeout
+	while time.time()<end:
+		cur=screen()
+		if re.search(pattern,cur): return cur
+		time.sleep(0.15)
+	raise AssertionError(f'timed out waiting for {pattern!r}:\n{screen()}')
+def keys(*k):
+	for x in k:
+		tmux('send-keys','-t',SESSION,*(['-l',x] if len(x)==1 and x not in '\n' else [x])); time.sleep(0.25)
+def type_text(text): tmux('send-keys','-t',SESSION,'-l',text); time.sleep(0.4)
+def cli_total(tz,*a):
+	e=dict(env,HOME=str(demo),KIOKU_INDEX=str(demo/'index.db'),TZ=tz)
+	p=subprocess.run([binary,'--json','--limit','300',*a],env=e,text=True,capture_output=True,timeout=60); assert p.returncode==0,p.stderr
+	j=json.loads(p.stdout); return j['total'],j['total_sessions']
+def header(cur): return re.search(r'(\d+) messages · (\d+) sessions',cur)
+def tui(tz,steps):
+	tmux('kill-session','-t',SESSION)
+	cmd=f"HOME={shlex.quote(str(demo))} KIOKU_INDEX={shlex.quote(str(demo/'index.db'))} KIOKU_THEME=dark TZ={tz} TERM=xterm-256color {shlex.quote(binary)} checkout"
+	assert tmux('new-session','-d','-s',SESSION,'-x','130','-y','32',cmd).returncode==0
+	try: return steps()
+	finally: tmux('kill-session','-t',SESSION)
+results={}
+for tz in ('UTC','Asia/Taipei'):
+	def steps():
+		cur=wait_for(r'\d+ messages · \d+ sessions')
+		all_total=header(cur).groups()
+		keys('Escape'); keys('d')
+		wait_for(r'range ▸ ')
+		type_text('3d..yesterday'); keys('Enter')
+		cur=wait_for(r'3d|\d{4}-\d\d-\d\d to \d{4}-\d\d-\d\d')
+		cur=wait_for(r'\d{4}-\d\d-\d\d to \d{4}-\d\d-\d\d · \d+ messages')
+		got=tuple(map(int,header(cur).groups()))
+		want=cli_total(tz,'--since','3d','--until','yesterday','checkout')
+		assert got==want,(tz,got,want,cur)
+		assert want[0]>0 and want[0]<int(all_total[0]),(want,all_total)
+		keys('d'); type_text('2099-01-01'); keys('Enter')
+		wait_for(r'No message in this date range')
+		keys('D'); cur=wait_for(r'\d+ messages · \d+ sessions')
+		assert 'from 20' not in cur and 'No message in this date range' not in cur
+		assert header(cur).groups()==all_total,(header(cur).groups(),all_total)
+		keys('d'); type_text('nonsense'); keys('Enter')
+		cur=wait_for(r'invalid nonsense')
+		assert header(cur).groups()==all_total
+		return want
+	results[tz]=tui(tz,steps)
+passed('TUI d sets the range with the CLI bounds: header shows it and the counts equal the CLI total for --since 3d --until yesterday, in UTC and Asia/Taipei')
+passed('TUI shows the empty-range message for a range with no matches, D restores the original results, and a bad value keeps them and says why')
 
 result={'baseline':base_ref,'pass':len(checks),'fail':0,'checks':checks}
 pathlib.Path(test/'views-e2e-result.json').write_text(json.dumps(result,indent=2,ensure_ascii=False)+'\n')

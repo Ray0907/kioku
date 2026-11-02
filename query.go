@@ -346,7 +346,7 @@ func newestMatches(ctx context.Context, db *sql.DB, match, harness string, proje
 	}
 }
 
-func search(ctx context.Context, db *sql.DB, q, harness string, projects []string, limit int, allTime, includeSelf bool) ([]hit, error) {
+func search(ctx context.Context, db *sql.DB, q, harness string, projects []string, limit int, allTime, includeSelf bool, rng timeRange) ([]hit, error) {
 	match := toFTS(q)
 	names, err := matchingProjects(ctx, db, projects)
 	if err != nil {
@@ -380,7 +380,9 @@ func search(ctx context.Context, db *sql.DB, q, harness string, projects []strin
 		}
 	}
 	if match == "" {
-		sqlq = `SELECT s.uid,s.harness,s.native_id,s.project,s.cwd,s.path,m.id,m.idx,m.ts,m.role,m.text FROM sessions s JOIN messages m ON s.uid=m.session_uid WHERE m.idx=(SELECT max(idx) FROM messages m WHERE session_uid=s.uid ` + selfFilter(includeSelf) + `) `
+		rangeSQL, rangeArgs := rangePredicate(rng)
+		args = append(args, rangeArgs...)
+		sqlq = `SELECT s.uid,s.harness,s.native_id,s.project,s.cwd,s.path,m.id,m.idx,m.ts,m.role,m.text FROM sessions s JOIN messages m ON s.uid=m.session_uid WHERE m.idx=(SELECT max(idx) FROM messages m WHERE session_uid=s.uid ` + selfFilter(includeSelf) + rangeSQL + `) `
 		if harness != "" && harness != "all" {
 			sqlq += `AND s.harness=? `
 			args = append(args, harness)
@@ -391,12 +393,12 @@ func search(ctx context.Context, db *sql.DB, q, harness string, projects []strin
 		sqlq += `ORDER BY m.ts DESC,m.id DESC LIMIT ?`
 		args = append(args, limit)
 	} else if common {
-		ids, e := newestMatches(ctx, db, match, harness, projects, names, false, includeSelf, timeRange{}, limit)
+		ids, e := newestMatches(ctx, db, match, harness, projects, names, false, includeSelf, rng, limit)
 		if e != nil {
 			return nil, e
 		}
 		if len(ids) < limit {
-			tools, err := newestMatches(ctx, db, match, harness, projects, names, true, includeSelf, timeRange{}, limit-len(ids))
+			tools, err := newestMatches(ctx, db, match, harness, projects, names, true, includeSelf, rng, limit-len(ids))
 			if err != nil {
 				return nil, err
 			}
@@ -417,7 +419,7 @@ func search(ctx context.Context, db *sql.DB, q, harness string, projects []strin
 		}
 		sqlq += `WHERE messages_fts MATCH ? ` + selfFilter(includeSelf)
 		args = append(args, match)
-		if shortLatin(q) && !allTime {
+		if shortLatin(q) && !allTime && !rng.active() {
 			var latest string
 			if e := db.QueryRowContext(ctx, `SELECT coalesce(max(m.ts),'') FROM messages m WHERE 1 `+selfFilter(includeSelf)).Scan(&latest); e != nil {
 				return nil, e
@@ -432,6 +434,9 @@ func search(ctx context.Context, db *sql.DB, q, harness string, projects []strin
 			args = append(args, harness)
 		}
 		clause, values := projectPredicate(projects, names)
+		sqlq += clause
+		args = append(args, values...)
+		clause, values = rangePredicate(rng)
 		sqlq += clause
 		args = append(args, values...)
 	}
