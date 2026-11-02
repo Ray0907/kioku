@@ -27,27 +27,15 @@ func facetCounts(ctx context.Context, db *sql.DB, from string, args []any, disti
 		count = `count(DISTINCT m.session_uid)`
 	}
 	group := func(expr, order string, limit int) ([]facetCount, error) {
-		rows, e := db.QueryContext(ctx, `SELECT `+expr+` v,`+count+` c `+from+`GROUP BY v ORDER BY `+order, args...)
-		if e != nil {
-			return nil, e
-		}
-		defer rows.Close()
-		out, other := []facetCount{}, 0
-		for rows.Next() {
-			var f facetCount
-			if e = rows.Scan(&f.Value, &f.Count); e != nil {
-				return nil, e
-			}
-			if len(out) < limit {
-				out = append(out, f)
-			} else {
-				other += f.Count
-			}
-		}
-		if other > 0 {
-			out = append(out, facetCount{"(other)", other})
-		}
-		return out, rows.Err()
+		return groupLimited(ctx, db, `SELECT `+expr+` v,`+count+` c `+from+`GROUP BY v ORDER BY `+order, args, limit,
+			func(r *sql.Rows) (f facetCount, e error) { e = r.Scan(&f.Value, &f.Count); return },
+			func(rest []facetCount) facetCount {
+				other := facetCount{Value: "(other)"}
+				for _, f := range rest {
+					other.Count += f.Count
+				}
+				return other
+			})
 	}
 	var f facets
 	var e error
@@ -63,6 +51,32 @@ func facetCounts(ctx context.Context, db *sql.DB, from string, args []any, disti
 		}
 	}
 	return &f, nil
+}
+
+// groupLimited keeps the first limit rows of a grouped query and folds the rest
+// into one extra row, so every list still adds up to the total.
+func groupLimited[T any](ctx context.Context, db *sql.DB, query string, args []any, limit int, scan func(*sql.Rows) (T, error), fold func([]T) T) ([]T, error) {
+	rows, e := db.QueryContext(ctx, query, args...)
+	if e != nil {
+		return nil, e
+	}
+	defer rows.Close()
+	out, rest := []T{}, []T{}
+	for rows.Next() {
+		x, e := scan(rows)
+		if e != nil {
+			return nil, e
+		}
+		if len(out) < limit {
+			out = append(out, x)
+		} else {
+			rest = append(rest, x)
+		}
+	}
+	if len(rest) > 0 {
+		out = append(out, fold(rest))
+	}
+	return out, rows.Err()
 }
 func renderFacets(f *facets) {
 	if f == nil {

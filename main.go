@@ -45,6 +45,7 @@ const usage = `Usage:
   kioku index [--rebuild]         Sync sources and print counts
   kioku doctor [--json]           Check sources, index and SQLite without changes
   kioku update [--check]          Install the latest release over this binary
+  kioku stats [flags]             Sessions, messages and last activity per harness and project
   kioku context                   Where agents left off in this project (for session-start hooks)
   kioku mcp                      Serve read-only MCP tools over stdio
   kioku help                      Show this help
@@ -63,13 +64,18 @@ Flags: --json (one JSON page), --limit N (default 10 for pages, 300 for TUI),
        --all (show: whole session), --full (show: untruncated hit),
        --format md (show: Markdown to paste into an issue or PR; not with --json),
        --no-mouse, --rebuild (index), --version, --help, -h.
+Stats: kioku stats [--since D] [--until D] [-p NAME] [--harness H] [--json]
+       counts messages in the range and the sessions that have them, per harness
+       and per project (20 projects, the rest summed into (other)), with the last
+       active time in local time. kioku's own tool calls are not counted.
 Query: space means AND; "black tea" is a phrase; -word excludes;
        bare words are prefixes. Use -- to search flag-like text:
        kioku -- --help (or kioku '"help"' for the word help).
        Single unquoted 1-2 letter Latin prefixes search the 7 days before
        the index's latest timestamp; --all-time removes this restriction.
        Text reports N older matches omitted (--all-time) when applicable.
-JSON: {shown,total,total_sessions,hits,next_cursor,omitted_older,facets} for search;
+JSON: stats is {total,harness,project}; each row is {value,sessions,messages,last_active}.
+      {shown,total,total_sessions,hits,next_cursor,omitted_older,facets} for search;
       {shown,total,sessions,next_cursor,omitted_older,facets} for --sessions;
       facets appears only with --facets: {project,harness,week:[{value,count}]};
       omitted_older counts excluded messages and appears only when nonzero;
@@ -122,6 +128,9 @@ func run() error {
 			return fmt.Errorf("mcp takes no arguments")
 		}
 		return serveMCP(os.Stdin, output)
+	}
+	if len(args) > 0 && args[0] == "stats" {
+		return runStats(args[1:])
 	}
 	if len(args) > 0 && args[0] == "context" {
 		return runContext(args[1:])
@@ -270,7 +279,7 @@ func run() error {
 	if !show && *showQuery != "" {
 		return fmt.Errorf("--query requires show")
 	}
-	if *harness != "all" && *harness != "claude" && *harness != "codex" && *harness != "pi" && *harness != "grok" && *harness != "opencode" && *harness != "cursor" && *harness != "agy" {
+	if !validHarness(*harness) {
 		return fmt.Errorf("invalid harness %q", *harness)
 	}
 	db, e := openDB()
