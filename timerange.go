@@ -100,3 +100,49 @@ func resolveRange(since, until string, sinceSet, untilSet bool, now time.Time) (
 	}
 	return r, nil
 }
+
+// parseRangeSpec reads the TUI's "since..until" form. Each side takes the
+// --since/--until values, either may be empty, and a lone value is a since.
+func parseRangeSpec(spec string, now time.Time) (timeRange, error) {
+	parts := strings.Split(spec, "..")
+	if len(parts) > 2 {
+		return timeRange{}, fmt.Errorf("use since..until")
+	}
+	since := strings.TrimSpace(parts[0])
+	until := ""
+	if len(parts) == 2 {
+		until = strings.TrimSpace(parts[1])
+	}
+	return resolveRange(since, until, since != "", until != "", now)
+}
+
+// label shows the range in local time; an exclusive midnight bound reads as the day before.
+func (r timeRange) label() string {
+	local := func(bound string, end bool) string {
+		t, e := time.ParseInLocation(boundLayout, bound, time.UTC)
+		if e != nil {
+			return bound
+		}
+		t = t.Local()
+		if t.Equal(localMidnight(t)) {
+			if end {
+				t = t.AddDate(0, 0, -1)
+			}
+			return t.Format("2006-01-02")
+		}
+		return t.Format("2006-01-02 15:04")
+	}
+	switch {
+	case r.Since != "" && r.Until != "":
+		if a, b := local(r.Since, false), local(r.Until, true); a != b {
+			return a + " to " + b
+		} else {
+			return a
+		}
+	case r.Since != "":
+		return "from " + local(r.Since, false)
+	case r.Until != "":
+		return "to " + local(r.Until, true)
+	}
+	return ""
+}
