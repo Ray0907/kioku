@@ -1,11 +1,19 @@
 {
   "baseline": "6a64f08",
-  "pass": 4,
+  "pass": 12,
   "fail": 0,
   "checks": [
     "show text and --json output is byte-identical to 6a64f08 for hit, context, query, --all and --full",
     "md renders heading, metadata, resume command, quoted messages and the hit marker, repeatably",
     "md of a whole session has no hit marker",
-    "invalid --format values, md with --json and md outside show are errors with no output"
+    "invalid --format values, md with --json and md outside show are errors with no output",
+    "stats per harness, per project and total equal a direct count of the index; last active is the newest message",
+    "stats text shows totals and both tables, repeatably",
+    "stats --harness and -p filter every table and the total (project match ignores case)",
+    "stats --since/--until use the CLI bound rules: a date as --until covers that whole day, sessions without messages in range drop out",
+    "stats ranges and last-active times follow local time",
+    "an empty range prints zero totals and empty lists",
+    "stats rejects positional arguments, unknown harnesses and bad ranges with no output",
+    "a search for the word stats still works after the subcommand: kioku -- stats"
   ]
 }
