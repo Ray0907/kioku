@@ -1,4 +1,4 @@
-.PHONY: build install clean release
+.PHONY: build install clean release check-plugin-version
 
 # macOS 27 CLT SDK ships .tbd files this linker rejects ("unknown architecture"); pin 26 when present.
 SDK26 := /Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk
@@ -17,8 +17,13 @@ build:
 install:
 	go install -tags sqlite_fts5 -ldflags "$(LDFLAGS)" .
 
+# Plugin users only update when plugin.json's version changes, so a release must match its tag.
+check-plugin-version:
+	@v=$$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' .claude-plugin/plugin.json); \
+	[ "v$$v" = "$(VERSION)" ] || { echo "plugin.json version v$$v != $(VERSION): bump it, commit, then tag" >&2; exit 1; }
+
 # macOS only for now (Phase 1). cgo, so each arch is built with clang's -arch.
-release:
+release: check-plugin-version
 	rm -rf dist && mkdir -p dist
 	for arch in arm64 amd64; do \
 	  clangarch=$$arch; [ $$arch = amd64 ] && clangarch=x86_64; \
