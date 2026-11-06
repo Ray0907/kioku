@@ -15,12 +15,15 @@ import (
 )
 
 type palette struct {
-	hit, muted, rule, selbg, surf string
-	pens                          [3]string
+	hit, muted, selbg, surf, acc, key string
+	pens                              [3]string
+	agents                            map[string]string // glyph colour per harness; red stays reserved for hits
 }
 
-var light = palette{"#b6322d", "#606a74", "#798898", "#d2e3f9", "#eef3f9", [3]string{"#fde89a", "#bdfac8", "#ffe0f2"}}
-var dark = palette{"#f6857a", "#95a0ab", "#6f7e8d", "#293647", "#232a35", [3]string{"#3c3207", "#193b22", "#492537"}}
+var light = palette{"#b6322d", "#606a74", "#d2e3f9", "#eef3f9", "#2a64b0", "#e3eaf3", [3]string{"#fde89a", "#bdfac8", "#ffe0f2"},
+	map[string]string{"claude": "#8d5d1c", "codex": "#147175", "pi": "#3b723e"}}
+var dark = palette{"#f6857a", "#95a0ab", "#293647", "#232a35", "#7fb0ee", "#303a49", [3]string{"#3c3207", "#193b22", "#492537"},
+	map[string]string{"claude": "#ddae6c", "codex": "#76c7cc", "pi": "#8fc990"}}
 
 type pen struct {
 	word  string
@@ -646,6 +649,15 @@ func (m model) listHeight() int {
 }
 func (m model) color(s, c string) string {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(c)).Render(displayInline(s))
+}
+
+// agentGlyph paints the harness mark in its own colour, falling back to muted.
+func (m model) agentGlyph(h string) string {
+	c, ok := m.pal.agents[h]
+	if !ok {
+		c = m.pal.muted
+	}
+	return m.color(agentMark(h), c)
 }
 func agentMark(h string) string {
 	switch h {
