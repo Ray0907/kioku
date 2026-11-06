@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- TUI: the query bar sits on a tinted band, agent glyphs take a per-harness colour (red stays for hits), and unselected rows dim the project. The list selection band shows only while focus is in the list; with the cursor in the query box the selected row keeps a quiet `›`. Transcript messages are separated by a blank line and marked by a speaker rule (`┃` you, `│` asst). Footer keys render as caps.
+- TUI: list snippets drop leading bullets, heading marks, bold markers and table pipes (display only).
+
+### Added
+- TUI: `t` unfolds or folds tool output. Tool messages are folded to one line with a `(+N lines)` count unless selected or matching the query.
+
 ## v0.8.0 - 2026-11-02
 
 ### Changed
