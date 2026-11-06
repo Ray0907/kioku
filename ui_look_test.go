@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -119,5 +121,28 @@ func TestToolHitStaysOpen(t *testing.T) {
 	m.hitIndex = map[int]bool{2: true}
 	if v := ansi.Strip(m.View()); !strings.Contains(v, "line two") {
 		t.Fatalf("a tool message that matches the query is never folded:\n%s", v)
+	}
+}
+
+func TestSpaceKeyTypesIntoQueryAndPrompts(t *testing.T) {
+	type_ := func(m model, keys ...tea.KeyMsg) model {
+		for _, k := range keys {
+			next, _ := m.Update(k)
+			m = next.(model)
+		}
+		return m
+	}
+	space := tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}}
+	m := lookModel(false)
+	m.focus, m.q = true, ""
+	m = type_(m, keyRunes("abc"), space, keyRunes("def"))
+	if m.q != "abc def" {
+		t.Fatalf("space belongs in the query: %q", m.q)
+	}
+	p := lookModel(false)
+	p.prompt = promptHighlight
+	p = type_(p, keyRunes("a"), space, keyRunes("b"))
+	if p.status != "a b" {
+		t.Fatalf("space belongs in the prompt: %q", p.status)
 	}
 }

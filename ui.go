@@ -384,7 +384,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "backspace":
 				m.status = trimLast(m.status)
 			default:
-				if x.Type == tea.KeyRunes {
+				if x.Type == tea.KeyRunes || x.Type == tea.KeySpace {
 					m.status += string(x.Runes)
 				}
 			}
@@ -430,7 +430,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.q = ""
 				return m, m.refresh()
 			default:
-				if x.Type == tea.KeyRunes {
+				if x.Type == tea.KeyRunes || x.Type == tea.KeySpace {
 					m.q += string(x.Runes)
 					m.status = ""
 					return m, m.refresh()
