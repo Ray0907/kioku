@@ -1,6 +1,7 @@
 package main
 
 import (
+	"regexp"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -42,6 +43,17 @@ func displayText(s string, multiline bool) string {
 }
 func displayInline(s string) string     { return displayText(s, false) }
 func displayTranscript(s string) string { return displayText(s, true) }
+
+var pipeRun = regexp.MustCompile(`\s*\|[\s|:\-]*`)
+
+// tidySnippet drops the markdown noise a list row would otherwise lead with: bullets, headings,
+// bold markers and table pipes. Display only; the index and search never see it.
+func tidySnippet(s string) string {
+	s = strings.ReplaceAll(s, "**", "")
+	s = strings.Trim(pipeRun.ReplaceAllString(s, " · "), " ·")
+	s = strings.Join(strings.Fields(s), " ")
+	return strings.TrimLeft(s, "-*#> ")
+}
 
 func pad(s string, n int) string {
 	w := displayWidth(s)
