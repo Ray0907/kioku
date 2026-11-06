@@ -41,6 +41,7 @@ type model struct {
 	limit                      int
 	allTime, includeSelf       bool
 	focus, full, help, mouse   bool
+	toolsOpen                  bool // t unfolds tool output in the transcript
 	prompt                     promptKind
 	rng                        timeRange
 	pens                       []pen
@@ -476,6 +477,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.setRange("")
 		case "v":
 			m.full = !m.full
+		case "t":
+			m.toolsOpen = !m.toolsOpen
 		case "?":
 			m.help = !m.help
 		case "r": // sync the index, then re-run the search

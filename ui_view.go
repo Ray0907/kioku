@@ -72,7 +72,7 @@ func (m model) View() string {
 			selected := idx == m.sel
 			const pjW, ageW = 13, 4
 			sw := max(1, w-5-pjW-ageW-2)
-			sn := clip(displayInline(x.Snippet), max(1, sw-2))
+			sn := clip(tidySnippet(displayInline(x.Snippet)), max(1, sw-2))
 			cursor := " "
 			agent := m.agentGlyph(x.Harness)
 			project := m.color(clip(displayInline(x.Project), pjW-1), m.pal.muted)
@@ -169,7 +169,7 @@ func (m model) bgRow(s string, w int, hex string) string {
 }
 func (m model) pageLines(w int) []string {
 	if m.help {
-		return []string{"  focus    ▌ in query = search; ↓ moves to results", "  query    space = AND · quotes = phrase · -word = exclude", "  ↓ / esc search to results    / results to search", "  ↑ ↓     previous / next result", "  r       sync the index, then re-run the search", "  n / N   next / previous hit in transcript", "  h / H   add highlighter / clear highlights", "  v       full transcript (hide hit list)", "  o       open directory in editor", "  y       copy resume command", "  enter   exit and resume in original cwd", "  tab     all · claude · codex · pi · grok · opencode · cursor · agy", "  agents   ✻ claude   ◇ codex   π pi   ✕ grok   ▢ opencode   ↖ cursor   a agy", "  ctrl+c  quit"}
+		return []string{"  focus    ▌ in query = search; ↓ moves to results", "  query    space = AND · quotes = phrase · -word = exclude", "  ↓ / esc search to results    / results to search", "  ↑ ↓     previous / next result", "  r       sync the index, then re-run the search", "  n / N   next / previous hit in transcript", "  h / H   add highlighter / clear highlights", "  v       full transcript (hide hit list)", "  t       show / fold tool output", "  o       open directory in editor", "  y       copy resume command", "  enter   exit and resume in original cwd", "  tab     all · claude · codex · pi · grok · opencode · cursor · agy", "  agents   ✻ claude   ◇ codex   π pi   ✕ grok   ▢ opencode   ↖ cursor   a agy", "  ctrl+c  quit"}
 	}
 	if len(m.rows) == 0 {
 		return nil
@@ -303,13 +303,23 @@ func (m model) pageLines(w int) []string {
 		prefix := "  " + star + "  " + stampText + " " + rule + " " + roleText + "  "
 		const textCol = 19
 		textW := max(1, w-textCol-2)
-		for j, line := range wrap(displayTranscript(x.Text), textW) {
+		body := wrap(displayTranscript(x.Text), textW)
+		folded := x.Role == "tool" && !m.toolsOpen && !selected && !isHit
+		if folded { // tool output is evidence, not reading: one line unless it is selected or matches
+			all := strings.Split(strings.TrimSpace(displayTranscript(x.Text)), "\n")
+			first := all[0]
+			if n := len(all) - 1; n > 0 {
+				first += fmt.Sprintf("  (+%d lines)", n)
+			}
+			body = []string{clip(first, textW)}
+		}
+		for j, line := range body {
 			p := prefix
 			if j > 0 {
 				p = strings.Repeat(" ", textCol)
 			}
 			line = m.paint(line, isHit, selected)
-			if context && !selected {
+			if (context || folded) && !selected {
 				line = lipgloss.NewStyle().Foreground(lipgloss.Color(m.pal.muted)).Render(line)
 			}
 			line = p + line

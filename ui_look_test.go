@@ -75,3 +75,49 @@ func TestFooterKeysPadded(t *testing.T) {
 		t.Fatalf("key caps carry a space on each side:\n%s", v)
 	}
 }
+
+func TestTidySnippet(t *testing.T) {
+	for in, want := range map[string]string{
+		"- 網址:`http://x`  - 帳號:admin":    "網址:`http://x` - 帳號:admin",
+		"## Issue #118   **需求：** 1. 把舊頁": "Issue #118 需求： 1. 把舊頁",
+		"| 項目 | 數值 | |---|---|":          "項目 · 數值",
+		"plain text stays":               "plain text stays",
+		"> quoted":                       "quoted",
+	} {
+		if got := tidySnippet(in); got != want {
+			t.Errorf("tidySnippet(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func toolModel() model {
+	m := lookModel(false)
+	m.q = ""
+	m.hitIndex = map[int]bool{}
+	m.messages = []message{
+		{Index: 1, Role: "user", Text: "run it", TS: "2026-11-04T14:02:00Z"},
+		{Index: 2, Role: "tool", Text: "Bash · ls\nline two\nline three", TS: "2026-11-04T14:03:00Z"},
+		{Index: 3, Role: "assistant", Text: "done", TS: "2026-11-04T14:04:00Z"},
+	}
+	return m
+}
+
+func TestToolMessagesCollapseUntilToggled(t *testing.T) {
+	v := ansi.Strip(toolModel().View())
+	if !strings.Contains(v, "Bash · ls") || strings.Contains(v, "line two") || !strings.Contains(v, "+2 lines") {
+		t.Fatalf("tool message folds to one line with a count:\n%s", v)
+	}
+	next, _ := toolModel().Update(keyRunes("t"))
+	if v := ansi.Strip(next.(model).View()); !strings.Contains(v, "line three") {
+		t.Fatalf("t opens tool output:\n%s", v)
+	}
+}
+
+func TestToolHitStaysOpen(t *testing.T) {
+	m := toolModel()
+	m.q = "line"
+	m.hitIndex = map[int]bool{2: true}
+	if v := ansi.Strip(m.View()); !strings.Contains(v, "line two") {
+		t.Fatalf("a tool message that matches the query is never folded:\n%s", v)
+	}
+}
