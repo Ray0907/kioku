@@ -138,6 +138,7 @@ Replace the example ref and token with values from your output. Refs are stable 
 | h / H | add a highlight / clear highlights |
 | d / D | set a date range (`since..until`: `7d`, `yesterday`, `2026-10-01..2026-10-07`; same values as `--since`/`--until`) / clear it |
 | v | toggle full transcript |
+| t | unfold / fold tool output (folded by default to one line with a `(+N lines)` count; a selected or matching tool message stays open) |
 | r | sync the index now and re-run the search, to find sessions written since you opened kioku |
 | o | open project in editor |
 | y | copy resume command |
