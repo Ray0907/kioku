@@ -46,7 +46,7 @@ func (m model) View() string {
 	}
 	right := m.color(clip(count, max(0, w-displayWidth(q)-4)), m.pal.muted)
 	inputW := max(0, w-displayWidth(q)-displayWidth(right)-2)
-	b.WriteString(q + pad(strong.Render(clip(input, max(0, inputW-2))), inputW) + right + "  \n")
+	b.WriteString(m.bgRow(q+pad(strong.Render(clip(input, max(0, inputW-2))), inputW)+right+"  ", w, m.pal.surf) + "\n")
 	if len(m.pens) > 0 {
 		ps := m.color("  highlights ", m.pal.muted)
 		for _, p := range m.pens {
@@ -74,17 +74,21 @@ func (m model) View() string {
 			sw := max(1, w-5-pjW-ageW-2)
 			sn := clip(displayInline(x.Snippet), max(1, sw-2))
 			cursor := " "
-			agent := m.color(agentMark(x.Harness), m.pal.muted)
-			project := clip(displayInline(x.Project), pjW-1)
+			agent := m.agentGlyph(x.Harness)
+			project := m.color(clip(displayInline(x.Project), pjW-1), m.pal.muted)
 			when := m.color(fmt.Sprintf("%*s", ageW, age(x.TS)), m.pal.muted)
+			band := selected && !m.focus // with the cursor in the query box the list only carries a quiet ›
 			if selected {
 				cursor = strong.Render("›")
-				agent = strong.Render(agentMark(x.Harness))
-				project = strong.Render(project)
+				if band {
+					cursor = strong.Foreground(lipgloss.Color(m.pal.acc)).Render("▎")
+				}
+				agent = strong.Foreground(lipgloss.Color(m.pal.agents[x.Harness])).Render(agentMark(x.Harness))
+				project = strong.Render(clip(displayInline(x.Project), pjW-1))
 				when = strong.Render(fmt.Sprintf("%*s", ageW, age(x.TS)))
 			}
-			row := "  " + cursor + agent + " " + pad(m.paint(sn, true, selected), sw) + pad(project, pjW) + when + "  "
-			if selected {
+			row := " " + cursor + " " + agent + " " + pad(m.paint(sn, true, selected), sw) + pad(project, pjW) + when + "  "
+			if band {
 				row = m.selectionRow(row, w)
 			}
 			b.WriteString(clipANSI(row, w) + "\n")
@@ -130,9 +134,10 @@ func (m model) View() string {
 func (m model) keys(w int, pairs ...string) string {
 	parts := make([]string, 0, len(pairs)/2)
 	for i := 0; i+1 < len(pairs); i += 2 {
-		parts = append(parts, lipgloss.NewStyle().Bold(true).Render(pairs[i])+" "+m.color(pairs[i+1], m.pal.muted))
+		cap := lipgloss.NewStyle().Bold(true).Background(lipgloss.Color(m.pal.key)).Render(" " + pairs[i] + " ")
+		parts = append(parts, cap+" "+m.color(pairs[i+1], m.pal.muted))
 	}
-	return "  " + clipANSI(strings.Join(parts, "    "), w-4)
+	return "  " + clipANSI(strings.Join(parts, "   "), w-4)
 }
 func clipANSI(s string, w int) string {
 	if w <= 0 {
@@ -174,7 +179,7 @@ func (m model) pageLines(w int) []string {
 	if home, e := os.UserHomeDir(); e == nil && home != "" && strings.HasPrefix(cwd, home+"/") {
 		cwd = "~" + cwd[len(home):]
 	}
-	left := "  " + m.color(agentMark(sel.Harness), m.pal.muted) + " " + lipgloss.NewStyle().Bold(true).Render(displayInline(sel.Project)) + "  " + m.color(sel.Harness+"  "+sel.TS[:min(10, len(sel.TS))]+"  "+cwd, m.pal.muted)
+	left := "  " + m.agentGlyph(sel.Harness) + " " + lipgloss.NewStyle().Bold(true).Render(displayInline(sel.Project)) + "  " + m.color(sel.Harness+"  "+sel.TS[:min(10, len(sel.TS))]+"  "+cwd, m.pal.muted)
 	active := toFTS(m.q) != ""
 	count := fmt.Sprintf("result %d of %d", m.sel+1, len(m.rows))
 	if active {
@@ -291,8 +296,12 @@ func (m model) pageLines(w int) []string {
 			stampText = strong.Render(pad(clip(stamp, 5), 5))
 			roleText = strong.Render(pad(who, 4))
 		}
-		prefix := "  " + star + "  " + stampText + "  " + roleText + "  "
-		const textCol = 18
+		rule := m.color("│", m.pal.muted)
+		if x.Role == "user" {
+			rule = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(m.pal.acc)).Render("┃")
+		}
+		prefix := "  " + star + "  " + stampText + " " + rule + " " + roleText + "  "
+		const textCol = 19
 		textW := max(1, w-textCol-2)
 		for j, line := range wrap(displayTranscript(x.Text), textW) {
 			p := prefix
@@ -309,7 +318,7 @@ func (m model) pageLines(w int) []string {
 			}
 			lines = append(lines, clipANSI(line, w))
 		}
-		return lines
+		return append(lines, "")
 	}
 	extra := 0
 	if m.status != "" && m.prompt == promptNone {
