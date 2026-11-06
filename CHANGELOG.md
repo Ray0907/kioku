@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.9.1 - 2026-11-06
 
 ### Fixed
 - TUI: the space key was dropped in the query and in the highlight and range prompts, so `abc def` could not be typed.
