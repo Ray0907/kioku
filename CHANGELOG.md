@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.9.0 - 2026-11-06
 
 ### Changed
 - TUI: the query bar sits on a tinted band, agent glyphs take a per-harness colour (red stays for hits), and unselected rows dim the project. The list selection band shows only while focus is in the list; with the cursor in the query box the selected row keeps a quiet `›`. Transcript messages are separated by a blank line and marked by a speaker rule (`┃` you, `│` asst). Footer keys render as caps.
