@@ -12,10 +12,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - runner: macos-14
+          - runner: macos-15
             goos: darwin
             goarch: arm64
-          - runner: macos-14
+          - runner: macos-15
             goos: darwin
             goarch: amd64
           - runner: ubuntu-24.04
