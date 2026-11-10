@@ -101,38 +101,20 @@ kioku index --rebuild    # replace the index
 
 When stdout is not a TTY, search prints a compact text page; `--json` prints a structured JSON page. `--version` prints the version; `--no-mouse` disables mouse input. The initial scan runs on first use; the TUI opens with its existing index and refreshes when the scan finishes.
 
-Search: space means AND; `"black tea"` is an exact phrase; `-word` excludes; bare words are prefixes (`resum` finds `resuming`); use `kioku -- --help` to search a flag-like word. CJK terms match inside text, including single characters. Empty or negative-only queries show the latest message of each recent session. The TUI shows up to 300 results by default; one-shot text and JSON pages show 10 (`--limit N` changes either): selective queries use FTS5 BM25 (newest first on ties); queries whose positive ASCII terms and full FTS match both cover at least 90% use newest matching message time instead. Matching user/assistant messages appear before tool output, with the existing order preserved within each group. Only a single unquoted 1–2 letter Latin prefix is restricted to messages from the seven days before the index's latest timestamp; when older matches are omitted, text pages end with `N older matches omitted (--all-time)` and JSON includes `omitted_older` (a message count, including in `--sessions`). Use `--all-time` to remove this restriction.
+Search: space means AND; `"black tea"` is an exact phrase; `-word` excludes; bare words are prefixes (`resum` finds `resuming`); use `kioku -- --help` to search a flag-like word. CJK terms match inside text, including single characters. Empty or negative-only queries show the latest message of each recent session. The TUI shows up to 300 results by default (the header reads `300 of N messages` when more match); one-shot text and JSON pages show 10 (`--limit N` changes either): selective queries use FTS5 BM25 (newest first on ties); queries whose positive ASCII terms and full FTS match both cover at least 90% use newest matching message time instead. Matching user/assistant messages appear before tool output, with the existing order preserved within each group. Only a single unquoted 1–2 letter Latin prefix is restricted to messages from the seven days before the index's latest timestamp; when older matches are omitted, text pages end with `N older matches omitted (--all-time)` and JSON includes `omitted_older` (a message count, including in `--sessions`). Use `--all-time` to remove this restriction.
 
-Kioku tool calls and their results are hidden from search by default; `--include-self` restores them for that run (including `--sessions`), without reindexing. User/assistant mentions remain searchable.
+Sessions started by an automated review prompt are hidden from search by default; `--include-automated` shows them. Kioku tool calls and their results are hidden from search by default; `--include-self` restores them for that run (including `--sessions`), without reindexing. User/assistant mentions remain searchable.
 
 ## For agents
 
-```sh
-kioku --limit 5 snapshot                  # short refs + snippets, at most 5 hits
-kioku -p kioku --limit 5 snapshot        # exact project basename, case-insensitive; repeat -p for more
-kioku --limit 5 --cursor TOKEN snapshot   # next page, same query and flags
-kioku --sessions --limit 5 snapshot       # conversation-bearing sessions first; per-role hit counts
-kioku --since 7d snapshot                 # date range, local time: 2026-10-20, 7d, 2w, today, yesterday
-kioku --since 2026-10-01 --until 2026-10-07 --facets snapshot  # plus hit counts per project, harness, week
-kioku --max-per-session 2 snapshot        # at most 2 hits from any one session
-kioku show a1b2c3d4e5f6:12 --query "snapshot" --context 3  # center the hit, with surrounding messages
-kioku show a1b2c3d4e5f6:12 --full         # entire marked message; context remains compact
-kioku show a1b2c3d4e5f6 --context 0 --all    # walk the entire session, 10 messages/page
-kioku show a1b2c3d4e5f6:12 --format md        # Markdown to paste into an issue or PR
-kioku --json --limit 5 snapshot          # one JSON object with hits and next_cursor
-kioku stats --since 30d -p kioku          # sessions, messages and last active per harness and project
-kioku stats --json --harness claude       # {total,harness,project}; rows are {value,sessions,messages,last_active}
-```
-
-`kioku stats` counts the messages inside the optional `--since`/`--until` range (same values as search) and the sessions that have one, per harness and per project, with the newest message time in local time. Projects past 20 are summed into `(other)`. Kioku tool calls are not counted. To search for the word itself, use `kioku -- stats`.
-
-Replace the example ref and token with values from your output. Refs are stable short hashes of the source-qualified session ID plus the message index; `show` also accepts an unambiguous native session ID. Search snippets use at most 160 display cells; `show` text uses at most 400 unless `--full` is used for the marked hit (JSON then includes its original full text). The hit header and JSON `total_sessions` count distinct sessions across **all** matches. The copyable `expand:` command passes the search query to `show`, which centers the marked message around its first visible match; without `--query`, `show` starts at the beginning of the text. Session results include a directly showable `best_ref`, per-role counts (`roles.you`, `roles.asst`, `roles.tool` in JSON), and a 70-cell topic from the first real user message. `show` repeats that topic in its header and JSON. Sessions with conversation hits precede tool-only sessions; BM25 order remains within each tier. Show headers and JSON `start`, `end`, and `hit_index` use the same zero-based message indices as refs; `session_total` is the message count. A `cursor:` footer (or JSON `next_cursor`) appears only when more results exist; reuse it with the same mode, query, and flags. `show --all` starts at the first message and pages through the full session. JSON mirrors the text fields without full transcripts; use `show` to expand a result. Cursors use offsets against the current index, so a simultaneous reindex can shift later pages.
+kioku has a compact text and JSON CLI, an MCP server (`kioku mcp`), a Claude Code plugin and a skill. See [docs/agents.md](docs/agents.md) for flags, refs, cursors, MCP tools and setup.
 
 | Key | Action |
 | --- | --- |
-| typing | search (30 ms debounce) |
+| typing | search (30 ms debounce); Ctrl-W deletes the previous word |
 | ↓ / Esc | search → results |
 | ↑↓ / j k | select message; ↑ on first row returns to search |
+| PgDn / PgUp | scroll the transcript a page, to read a long message to its end |
 | / | focus search |
 | n / N | next / previous hit in transcript |
 | h / H | add a highlight / clear highlights |
@@ -144,7 +126,7 @@ Replace the example ref and token with values from your output. Refs are stable 
 | y | copy resume command |
 | Enter | resume selected session in its original directory |
 | Tab / Shift-Tab | cycle all / claude / codex / pi / grok / opencode / cursor |
-| ? | help |
+| ? | help (Esc or ? closes it) |
 | Ctrl-C / Esc in results | quit |
 
 Sessions are indexed when kioku starts. To pick up ones written while it is open, press `r` (sync, then re-run the search), or set `KIOKU_SYNC_EVERY` to have kioku re-check in the background, e.g. `KIOKU_SYNC_EVERY=30s kioku`. It is off by default; the minimum is `5s`, and `0` turns it off. Background syncs never move your selection: new messages are counted in the header (`5 new · r refreshes`), and a new query or `r` includes them. They show no progress and ignore errors.
@@ -190,55 +172,6 @@ Cursor CLI sessions are `~/.cursor/chats/<md5(cwd)>/<session-id>/{meta.json,stor
 Antigravity CLI uses `conversation_summaries.db` and `conversations/<id>.db` in its data directory. kioku reads these SQLite stores in read-only mode, with live WAL data. It reads user, assistant, and tool steps in step order. It skips child sessions and system steps. The metadata timestamp and step count control each index update; no file timestamp is used. Use `--harness agy` to select these sessions. Resume runs `agy --conversation <id>` from the session directory.
 
 Search tokenization uses [fts5-cjk](https://github.com/Ray0907/fts5-cjk), statically linked under its original license in `internal/cjk/`.
-
-## Use from agents
-
-Install the `kioku` binary first and keep it on the agent's `PATH`. In Claude Code:
-
-```text
-/plugin marketplace add Ray0907/kioku
-/plugin install kioku@kioku
-```
-
-Restart Claude Code after installation. The plugin loads the existing `skills/kioku` skill and starts the local MCP server. It exposes `kioku_search`, `kioku_sessions` and `kioku_show`: the same compact JSON pages as `--json`, returned in a text content block. All tools are read-only; they update kioku's cache but never change source transcripts or expose `index --rebuild`. Snippets are capped unless you explicitly use `kioku_show` with `full: true` for a message ref.
-
-For any stdio MCP client, add this to its MCP configuration (adapt the outer key if your client uses a different format):
-
-```json
-{
-  "mcpServers": {
-    "kioku": { "command": "kioku", "args": ["mcp"] }
-  }
-}
-```
-
-The plugin also adds a `SessionStart` hook that runs `kioku context`: every new Claude Code session starts with the project's recent sessions (agent, age, topic, last question and reply, and a ref for `kioku show`). It prints nothing, and never blocks a session, when there is no history or no index. Run `kioku context` in a project folder to preview it.
-
-`kioku mcp` uses newline-delimited JSON-RPC 2.0 over stdin/stdout, with protocol version `2025-06-18`. Logs go only to stderr. Normal `KIOKU_*` source and index environment variables still apply. The server can read your local transcripts: enable it only in trusted clients and quote only the history needed for the task.
-
-For harnesses without MCP or skills, put this in `AGENTS.md`:
-
-```markdown
-When asked about earlier coding-agent work, search local history with:
-- `kioku --json --sessions -p <project> "<query>"`
-- `kioku show <best_ref> --json --query "<query>"`
-Use `kioku --json "<query>"` for message-level hits; reuse the exact query
-and flags with `--cursor <next_cursor>` if needed. Quote only relevant
-findings, include the resume command, and never run it without permission.
-```
-
-### Install the skill alone
-
-`skills/kioku/SKILL.md` teaches coding agents to reach for kioku whenever you mention earlier work ("last time we…", "where did I…", 之前、上次). With it, they search wide to narrow instead of grepping raw transcripts: `--sessions`, then hits, then `show`, paging with `--cursor`. Install it once:
-
-```sh
-git clone https://github.com/Ray0907/kioku && cd kioku
-mkdir -p ~/.claude/skills/kioku ~/.agents/skills/kioku
-cp skills/kioku/SKILL.md ~/.claude/skills/kioku/   # Claude Code
-cp skills/kioku/SKILL.md ~/.agents/skills/kioku/   # Codex, Pi and other agents that read ~/.agents/skills
-```
-
-The `kioku` binary must be on your `PATH`.
 
 ## License
 
