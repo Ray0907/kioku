@@ -1,8 +1,8 @@
 # Changelog
 
-## v0.10.1 - 2026-11-11
+## v0.10.2 - 2026-11-11
 
-v0.10.0 was tagged but not published: its new CI test gate failed because the e2e suite ran with `CI` set, which turns off TUI colors. v0.10.1 unsets it in the test environment and contains all of the changes below.
+v0.10.0 and v0.10.1 were tagged but not published: the new CI test gate failed, first because the e2e suite ran with `CI` set (which turns off TUI colors), then because shared runners missed the local 200 ms latency budget. The suite now unsets `CI`, and CI uses a 600 ms budget (`KIOKU_E2E_P95_MS`). v0.10.2 contains all of the changes below.
 
 ### Added
 - `--role user|asst|tool` (a comma list is allowed; MCP `kioku_search` `role`) limits search, `--sessions`, counts, facets and paging to those message roles. An invalid role is an error.
