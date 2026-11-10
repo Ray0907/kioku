@@ -42,6 +42,7 @@ type model struct {
 	sel, cursor, width, height int
 	limit                      int
 	allTime, includeSelf       bool
+	includeAutomated           bool
 	focus, full, help, mouse   bool
 	toolsOpen                  bool // t unfolds tool output in the transcript
 	prompt                     promptKind
@@ -203,13 +204,13 @@ type syncEnvelope struct {
 	ch <-chan syncMsg
 }
 
-func queryCmd(ctx context.Context, db *sql.DB, q, h string, projects []string, limit, rev int, allTime, includeSelf bool, rng timeRange) tea.Cmd {
+func queryCmd(ctx context.Context, db *sql.DB, q, h string, projects []string, limit, rev int, allTime, includeSelf, includeAutomated bool, rng timeRange) tea.Cmd {
 	return func() tea.Msg {
-		rows, e := search(ctx, db, q, h, projects, limit, allTime, includeSelf, rng)
+		rows, e := search(ctx, db, q, h, projects, limit, allTime, includeSelf, includeAutomated, rng)
 		if e != nil {
 			return resultMsg{revision: rev, err: e}
 		}
-		k := pageKey{Query: q, Harness: h, Projects: projects, Limit: limit, AllTime: allTime, IncludeSelf: includeSelf, Since: rng.Since, Until: rng.Until}
+		k := pageKey{Query: q, Harness: h, Projects: projects, Limit: limit, AllTime: allTime, IncludeSelf: includeSelf, IncludeAutomated: includeAutomated, Since: rng.Since, Until: rng.Until}
 		total, sessions, e := searchTotals(ctx, db, k, len(rows))
 		return resultMsg{revision: rev, rows: rows, total: total, totalSessions: sessions, err: e}
 	}
@@ -228,7 +229,7 @@ func (m *model) requestQuery() tea.Cmd {
 	m.loadRevision++
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
-	return queryCmd(ctx, m.db, m.q, m.harness, m.projects, m.limit, m.revision, m.allTime, m.includeSelf, m.rng)
+	return queryCmd(ctx, m.db, m.q, m.harness, m.projects, m.limit, m.revision, m.allTime, m.includeSelf, m.includeAutomated, m.rng)
 }
 
 // loadKey names what the preview shows: the same session under the same query

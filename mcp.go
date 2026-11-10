@@ -29,28 +29,30 @@ type mcpTool struct {
 func mcpTools() []mcpTool {
 	tools := []mcpTool{
 		{Name: "kioku_search", Description: "Search local agent messages. Empty query browses recent sessions; snippets are capped. Repeat the same arguments with next_cursor for more hits.", InputSchema: mcpSchema{Required: []string{"query"}, Properties: map[string]map[string]any{
-			"query":           {"type": "string"},
-			"harness":         {"type": "string", "enum": []string{"all", "claude", "codex", "pi", "grok", "opencode", "cursor", "agy"}},
-			"project":         {"type": "string", "minLength": 1, "description": "Project basename, case-insensitive."},
-			"limit":           {"type": "integer", "minimum": 1, "default": 10},
-			"cursor":          {"type": "string"},
-			"all_time":        {"type": "boolean", "default": false},
-			"include_self":    {"type": "boolean", "default": false},
-			"since":           {"type": "string", "minLength": 1, "description": "Only messages at or after this date: YYYY-MM-DD, RFC3339, Nd, Nw, today or yesterday (local time)."},
-			"until":           {"type": "string", "minLength": 1, "description": "Only messages before the end of this date; same forms as since. A date covers that whole day."},
-			"facets":          {"type": "boolean", "default": false, "description": "Also return hit counts per project, harness and week to help narrow the next search."},
-			"max_per_session": {"type": "integer", "minimum": 1, "description": "Keep at most N hits per session so one session cannot fill the page."},
-			"role":            {"type": "string", "minLength": 1, "description": "Filter roles: user, asst or tool; comma-separated lists allowed."},
+			"query":             {"type": "string"},
+			"harness":           {"type": "string", "enum": []string{"all", "claude", "codex", "pi", "grok", "opencode", "cursor", "agy"}},
+			"project":           {"type": "string", "minLength": 1, "description": "Project basename, case-insensitive."},
+			"limit":             {"type": "integer", "minimum": 1, "default": 10},
+			"cursor":            {"type": "string"},
+			"all_time":          {"type": "boolean", "default": false},
+			"include_self":      {"type": "boolean", "default": false},
+			"include_automated": {"type": "boolean", "default": false},
+			"since":             {"type": "string", "minLength": 1, "description": "Only messages at or after this date: YYYY-MM-DD, RFC3339, Nd, Nw, today or yesterday (local time)."},
+			"until":             {"type": "string", "minLength": 1, "description": "Only messages before the end of this date; same forms as since. A date covers that whole day."},
+			"facets":            {"type": "boolean", "default": false, "description": "Also return hit counts per project, harness and week to help narrow the next search."},
+			"max_per_session":   {"type": "integer", "minimum": 1, "description": "Keep at most N hits per session so one session cannot fill the page."},
+			"role":              {"type": "string", "minLength": 1, "description": "Filter roles: user, asst or tool; comma-separated lists allowed."},
 		}}},
 		{Name: "kioku_sessions", Description: "Find local agent sessions ranked by best hit, with compact snippets and topics. Empty query browses recent sessions.", InputSchema: mcpSchema{Required: []string{"query"}, Properties: map[string]map[string]any{
-			"query":   {"type": "string"},
-			"harness": {"type": "string", "enum": []string{"all", "claude", "codex", "pi", "grok", "opencode", "cursor", "agy"}},
-			"project": {"type": "string", "minLength": 1, "description": "Project basename, case-insensitive."},
-			"limit":   {"type": "integer", "minimum": 1, "default": 10},
-			"cursor":  {"type": "string"},
-			"since":   {"type": "string", "minLength": 1, "description": "Only messages at or after this date: YYYY-MM-DD, RFC3339, Nd, Nw, today or yesterday (local time)."},
-			"until":   {"type": "string", "minLength": 1, "description": "Only messages before the end of this date; same forms as since. A date covers that whole day."},
-			"facets":  {"type": "boolean", "default": false, "description": "Also return hit counts per project, harness and week to help narrow the next search."},
+			"query":             {"type": "string"},
+			"include_automated": {"type": "boolean", "default": false},
+			"harness":           {"type": "string", "enum": []string{"all", "claude", "codex", "pi", "grok", "opencode", "cursor", "agy"}},
+			"project":           {"type": "string", "minLength": 1, "description": "Project basename, case-insensitive."},
+			"limit":             {"type": "integer", "minimum": 1, "default": 10},
+			"cursor":            {"type": "string"},
+			"since":             {"type": "string", "minLength": 1, "description": "Only messages at or after this date: YYYY-MM-DD, RFC3339, Nd, Nw, today or yesterday (local time)."},
+			"until":             {"type": "string", "minLength": 1, "description": "Only messages before the end of this date; same forms as since. A date covers that whole day."},
+			"facets":            {"type": "boolean", "default": false, "description": "Also return hit counts per project, harness and week to help narrow the next search."},
 		}}},
 		{Name: "kioku_show", Description: "Read a message ref or session ID. Text is capped unless full=true (only the selected message). all=true pages the whole session; outline=true pages user messages and each turn's last assistant reply, without tools. limit defaults to 10, capped at 100.", InputSchema: mcpSchema{Required: []string{"ref"}, Properties: map[string]map[string]any{
 			"ref":     {"type": "string", "minLength": 1},
@@ -72,23 +74,24 @@ func mcpTools() []mcpTool {
 }
 
 type mcpArguments struct {
-	Query         string `json:"query"`
-	Harness       string `json:"harness"`
-	Project       string `json:"project"`
-	Role          string `json:"role"`
-	Limit         int    `json:"limit"`
-	Cursor        string `json:"cursor"`
-	Ref           string `json:"ref"`
-	Context       int    `json:"context"`
-	AllTime       bool   `json:"all_time"`
-	IncludeSelf   bool   `json:"include_self"`
-	Since         string `json:"since"`
-	Until         string `json:"until"`
-	Facets        bool   `json:"facets"`
-	MaxPerSession int    `json:"max_per_session"`
-	Full          bool   `json:"full"`
-	All           bool   `json:"all"`
-	Outline       bool   `json:"outline"`
+	Query            string `json:"query"`
+	Harness          string `json:"harness"`
+	Project          string `json:"project"`
+	Role             string `json:"role"`
+	Limit            int    `json:"limit"`
+	Cursor           string `json:"cursor"`
+	Ref              string `json:"ref"`
+	Context          int    `json:"context"`
+	AllTime          bool   `json:"all_time"`
+	IncludeSelf      bool   `json:"include_self"`
+	IncludeAutomated bool   `json:"include_automated"`
+	Since            string `json:"since"`
+	Until            string `json:"until"`
+	Facets           bool   `json:"facets"`
+	MaxPerSession    int    `json:"max_per_session"`
+	Full             bool   `json:"full"`
+	All              bool   `json:"all"`
+	Outline          bool   `json:"outline"`
 }
 
 func mcpCall(params json.RawMessage) (string, error) {
@@ -176,7 +179,7 @@ func mcpCall(params json.RawMessage) (string, error) {
 			return "", fmt.Errorf("ref cannot be empty")
 		}
 	}
-	key := pageKey{Mode: mode, Query: a.Query, Harness: a.Harness, Projects: projects, Roles: roles, Limit: a.Limit, Context: a.Context, JSON: true, Ref: a.Ref, AllTime: a.AllTime && shortLatin(a.Query), IncludeSelf: a.IncludeSelf, Full: a.Full, All: a.All, Outline: a.Outline, Since: rng.Since, Until: rng.Until, Facets: a.Facets, MaxPerSession: a.MaxPerSession}
+	key := pageKey{Mode: mode, Query: a.Query, Harness: a.Harness, Projects: projects, Roles: roles, Limit: a.Limit, Context: a.Context, JSON: true, Ref: a.Ref, AllTime: a.AllTime && shortLatin(a.Query), IncludeSelf: a.IncludeSelf, IncludeAutomated: a.IncludeAutomated, Full: a.Full, All: a.All, Outline: a.Outline, Since: rng.Since, Until: rng.Until, Facets: a.Facets, MaxPerSession: a.MaxPerSession}
 	offset, err := key.offset(a.Cursor)
 	if err != nil {
 		return "", err

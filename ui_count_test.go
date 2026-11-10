@@ -31,7 +31,7 @@ func TestTUIHeaderTotals(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := model{db: db, q: tc.query, harness: "all", limit: tc.limit, width: 120, height: 24, pal: light}
-			x := queryCmd(context.Background(), db, m.q, m.harness, nil, m.limit, m.revision, false, false, timeRange{})().(resultMsg)
+			x := queryCmd(context.Background(), db, m.q, m.harness, nil, m.limit, m.revision, false, false, false, timeRange{})().(resultMsg)
 			if x.err != nil {
 				t.Fatal(x.err)
 			}
@@ -53,7 +53,7 @@ func TestTUIHeaderTotalsFollowQuery(t *testing.T) {
 	m := model{db: db, q: "login", harness: "all", limit: 1, width: 120, height: 24, pal: light}
 	query := func() resultMsg {
 		t.Helper()
-		x := queryCmd(context.Background(), db, m.q, m.harness, m.projects, m.limit, m.revision, m.allTime, m.includeSelf, m.rng)().(resultMsg)
+		x := queryCmd(context.Background(), db, m.q, m.harness, m.projects, m.limit, m.revision, m.allTime, m.includeSelf, false, m.rng)().(resultMsg)
 		if x.err != nil {
 			t.Fatal(x.err)
 		}
@@ -94,7 +94,7 @@ func TestTUIHeaderTotalsFollowQuery(t *testing.T) {
 func TestTUIInitialCountsPendingSync(t *testing.T) {
 	db := rangeCorpus(t)
 	addSession(t, db, "recent", "pi", "/w/app", time.Hour, "user", "zz recent")
-	rows, err := search(context.Background(), db, "zz", "all", nil, 1, true, false, timeRange{})
+	rows, err := search(context.Background(), db, "zz", "all", nil, 1, true, false, false, timeRange{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestTUIHeaderCommonShortPrefixTotals(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := model{q: "zz", limit: 300, width: 120, height: 24, pal: light}
-			x := queryCmd(context.Background(), db, m.q, "all", nil, m.limit, 0, tc.allTime, false, tc.rng)().(resultMsg)
+			x := queryCmd(context.Background(), db, m.q, "all", nil, m.limit, 0, tc.allTime, false, false, tc.rng)().(resultMsg)
 			if x.err != nil {
 				t.Fatal(x.err)
 			}
@@ -166,7 +166,7 @@ func TestTUIHeaderPerformance(t *testing.T) {
 	var latencies, counts []time.Duration
 	for _, q := range queries {
 		start := time.Now()
-		x := queryCmd(context.Background(), db, q, "all", nil, 300, 0, false, false, timeRange{})().(resultMsg)
+		x := queryCmd(context.Background(), db, q, "all", nil, 300, 0, false, false, false, timeRange{})().(resultMsg)
 		latencies = append(latencies, time.Since(start))
 		if x.err != nil {
 			t.Fatalf("%q: %v", q, x.err)
@@ -200,7 +200,7 @@ func TestTUIHeaderShortPrefixTotals(t *testing.T) {
 		{false, lastTwentyDays, "1 of 2 messages · 2 sessions"},
 	} {
 		m := model{db: db, q: "zz", limit: 1, width: 120, height: 24, pal: light}
-		x := queryCmd(context.Background(), db, m.q, "all", nil, 1, 0, tc.allTime, false, tc.rng)().(resultMsg)
+		x := queryCmd(context.Background(), db, m.q, "all", nil, 1, 0, tc.allTime, false, false, tc.rng)().(resultMsg)
 		if x.err != nil {
 			t.Fatal(x.err)
 		}

@@ -56,6 +56,7 @@ Flags: --json (one JSON page), --limit N (default 10 for pages, 300 for TUI),
        --context N (show: before/after, default 3), --query Q (center show hit),
        --all-time (search: include older short-prefix matches),
        --include-self (search: include kioku tool calls and results),
+       --include-automated (search: include automated review sessions),
        --role user|asst|tool (search, --sessions: comma-separated roles; prints results),
        --since D, --until D (search, --sessions: date range in local time; D is
          YYYY-MM-DD, RFC3339, Nd, Nw, today or yesterday; a date as --until
@@ -156,6 +157,7 @@ func run() error {
 	contextSize := fs.Int("context", 3, "messages before and after")
 	allTime := fs.Bool("all-time", false, "include older short-prefix matches")
 	includeSelf := fs.Bool("include-self", false, "include kioku tool calls and results")
+	includeAutomated := fs.Bool("include-automated", false, "include automated review sessions")
 	role := fs.String("role", "", "filter roles: user, asst or tool (comma-separated)")
 	all := fs.Bool("all", false, "show full session")
 	full := fs.Bool("full", false, "show selected message without truncation")
@@ -211,7 +213,7 @@ func run() error {
 			continue
 		}
 		switch a {
-		case "--rebuild", "--json", "--no-mouse", "--version", "--sessions", "--all-time", "--include-self", "--all", "--full", "--outline", "--facets":
+		case "--rebuild", "--json", "--no-mouse", "--version", "--sessions", "--all-time", "--include-self", "--include-automated", "--all", "--full", "--outline", "--facets":
 			if e := fs.Parse([]string{a}); e != nil {
 				return e
 			}
@@ -336,7 +338,7 @@ func run() error {
 			mode = "show"
 			q = *showQuery
 		}
-		key := pageKey{Mode: mode, Query: q, Harness: *harness, Projects: projects, Roles: roles, Limit: *limit, Context: *contextSize, JSON: *jsonFlag, AllTime: *allTime && shortLatin(q), IncludeSelf: *includeSelf, All: *all, Full: *full, Outline: *outline, NoMouse: *noMouse, Rebuild: *rebuild, Since: rng.Since, Until: rng.Until, Facets: *facets, MaxPerSession: *maxPerSession}
+		key := pageKey{Mode: mode, Query: q, Harness: *harness, Projects: projects, Roles: roles, Limit: *limit, Context: *contextSize, JSON: *jsonFlag, AllTime: *allTime && shortLatin(q), IncludeSelf: *includeSelf, IncludeAutomated: *includeAutomated, All: *all, Full: *full, Outline: *outline, NoMouse: *noMouse, Rebuild: *rebuild, Since: rng.Since, Until: rng.Until, Facets: *facets, MaxPerSession: *maxPerSession}
 		if show {
 			key.Ref = words[0]
 		}
@@ -369,7 +371,7 @@ func run() error {
 			return renderHits(page, *jsonFlag, q)
 		}
 	}
-	rows, e := search(context.Background(), db, q, *harness, projects, *limit, *allTime, *includeSelf, timeRange{})
+	rows, e := search(context.Background(), db, q, *harness, projects, *limit, *allTime, *includeSelf, *includeAutomated, timeRange{})
 	if e != nil {
 		return e
 	}
@@ -380,6 +382,7 @@ func run() error {
 	syncEvery = every
 	m := newModel(db, q, *harness, projects, rows, !*noMouse, *limit, *includeSelf)
 	m.allTime = *allTime
+	m.includeAutomated = *includeAutomated
 	options := []tea.ProgramOption{tea.WithAltScreen()}
 	if !*noMouse {
 		options = append(options, tea.WithMouseCellMotion())

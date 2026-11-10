@@ -72,6 +72,9 @@ INSERT INTO meta(schema_version) SELECT 1 WHERE NOT EXISTS(SELECT 1 FROM meta);`
 		e = ensureColumn(db, "sessions", "msg_count", "INTEGER")
 	}
 	if e == nil {
+		e = ensureColumn(db, "sessions", "automated", "INTEGER NOT NULL DEFAULT 0")
+	}
+	if e == nil {
 		e = ensureColumn(db, "sources", "offset", "INTEGER DEFAULT 0")
 	}
 	if e == nil {
@@ -289,7 +292,7 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 	if e := db.QueryRow("SELECT schema_version FROM meta").Scan(&schemaVersion); e != nil {
 		return stats, e
 	}
-	migrating := schemaVersion < 3
+	migrating := schemaVersion < 4
 	rebuild = rebuild || migrating
 	files, dirs, walked, skipped, e := discover(db, rebuild)
 	if e != nil {
@@ -317,6 +320,9 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 	}
 	// DB sources are discovered by session timestamps, never by file size/mtime.
 	opencode, err := loadOpencode()
+	if opencode != nil {
+		defer opencode.close()
+	}
 	opencodeFailed := err != nil
 	agy, agyErr := loadAgy()
 	agyFailed := agyErr != nil
@@ -351,7 +357,6 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 	}
 	opSessions := map[string]opencodeSession{}
 	if opencode != nil {
-		defer opencode.close()
 		opSessions = opencode.sessions
 		for p := range opSessions {
 			files[p] = "opencode"
@@ -533,6 +538,14 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 				return stats, e
 			}
 		}
+		var firstUser string
+		err = tx.QueryRow("SELECT text FROM messages WHERE session_uid=? AND role='user' ORDER BY idx LIMIT 1", s.UID).Scan(&firstUser)
+		if err != nil && err != sql.ErrNoRows {
+			return stats, err
+		}
+		if _, e = tx.Exec("UPDATE sessions SET automated=? WHERE uid=?", automatedPrompt(strings.TrimSpace(firstUser)), s.UID); e != nil {
+			return stats, e
+		}
 		calls, err := json.Marshal(s.ToolCalls)
 		if err != nil {
 			return stats, err
@@ -545,12 +558,21 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 	timing("sync_changes", started)
 	started = time.Now()
 	if migrating {
-		if _, e = tx.Exec("UPDATE meta SET schema_version=3"); e != nil {
+		// Sessions kept from a source that failed to load are not re-parsed, so classify every session from its stored messages.
+		if e = classifyAutomated(tx); e != nil {
+			return stats, e
+		}
+		if _, e = tx.Exec("UPDATE meta SET schema_version=4"); e != nil {
 			return stats, e
 		}
 	}
 	if e = tx.Commit(); e != nil {
 		return stats, e
+	}
+	if rebuild {
+		if _, e = db.Exec("VACUUM"); e != nil {
+			return stats, e
+		}
 	}
 	rows, e = db.Query("SELECT harness,sum(msg_count) FROM sessions GROUP BY harness")
 	if e != nil {
@@ -592,4 +614,31 @@ func ageAt(ts string, now time.Time) string {
 		return fmt.Sprintf("%dd", int(d.Hours()/24))
 	}
 	return fmt.Sprintf("%dw", int(d.Hours()/168))
+}
+
+func classifyAutomated(tx *sql.Tx) error {
+	rows, e := tx.Query(`SELECT s.uid,coalesce((SELECT text FROM messages m WHERE m.session_uid=s.uid AND m.role='user' ORDER BY m.idx LIMIT 1),'') FROM sessions s`)
+	if e != nil {
+		return e
+	}
+	automated := map[string]bool{}
+	for rows.Next() {
+		var uid, first string
+		if e = rows.Scan(&uid, &first); e != nil {
+			rows.Close()
+			return e
+		}
+		automated[uid] = automatedPrompt(strings.TrimSpace(first))
+	}
+	if e = rows.Err(); e != nil {
+		rows.Close()
+		return e
+	}
+	rows.Close()
+	for uid, a := range automated {
+		if _, e = tx.Exec("UPDATE sessions SET automated=? WHERE uid=?", a, uid); e != nil {
+			return e
+		}
+	}
+	return nil
 }
