@@ -380,14 +380,15 @@ func search(ctx context.Context, db *sql.DB, q, harness string, projects []strin
 		}
 	}
 	if match == "" {
-		rangeSQL, rangeArgs := rangePredicate(rng)
-		args = append(args, rangeArgs...)
-		sqlq = `SELECT s.uid,s.harness,s.native_id,s.project,s.cwd,s.path,m.id,m.idx,m.ts,m.role,m.text FROM sessions s JOIN messages m ON s.uid=m.session_uid WHERE m.idx=(SELECT max(idx) FROM messages m WHERE session_uid=s.uid ` + selfFilter(includeSelf) + rangeSQL + `) `
+		sqlq = `SELECT s.uid,s.harness,s.native_id,s.project,s.cwd,s.path,m.id,m.idx,m.ts,m.role,m.text FROM sessions s JOIN messages m ON s.uid=m.session_uid WHERE m.idx=(SELECT max(idx) FROM messages m WHERE session_uid=s.uid ` + selfFilter(includeSelf) + `) `
 		if harness != "" && harness != "all" {
 			sqlq += `AND s.harness=? `
 			args = append(args, harness)
 		}
 		clause, values := projectPredicate(projects, names)
+		sqlq += clause
+		args = append(args, values...)
+		clause, values = rangePredicate(rng)
 		sqlq += clause
 		args = append(args, values...)
 		sqlq += `ORDER BY m.ts DESC,m.id DESC LIMIT ?`

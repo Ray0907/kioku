@@ -59,6 +59,86 @@ func TestSearchRangeEveryBranch(t *testing.T) {
 	}
 }
 
+func TestSearchEmptyRangeLargeIndex(t *testing.T) {
+	db := ctxDB(t)
+	started := time.Now()
+	_, err := db.Exec(`
+BEGIN;
+WITH RECURSIVE seq(n) AS (VALUES(0) UNION ALL SELECT n+1 FROM seq WHERE n<1999)
+INSERT INTO sessions(uid,harness,native_id,path,cwd,project,model,started,updated,msg_count)
+SELECT printf('bulk-%04d',n), CASE n%2 WHEN 0 THEN 'claude' ELSE 'codex' END,
+       printf('bulk-%04d',n), '/synthetic', '/w/app',
+       CASE n%3 WHEN 0 THEN 'app' ELSE 'web' END, '', '', '', 200 FROM seq;
+WITH RECURSIVE seq(n) AS (VALUES(0) UNION ALL SELECT n+1 FROM seq WHERE n<1999),
+     msg(idx) AS (VALUES(0) UNION ALL SELECT idx+1 FROM msg WHERE idx<199)
+INSERT INTO messages(id,session_uid,idx,ts,role,text,self)
+SELECT n*200+idx+1, printf('bulk-%04d',n), idx,
+       CASE n%5
+         WHEN 0 THEN '2026-10-01T12:00:00Z'
+         WHEN 1 THEN CASE idx WHEN 199 THEN '2026-10-15T12:00:00Z' ELSE '2026-10-01T12:00:00Z' END
+         WHEN 2 THEN CASE idx WHEN 199 THEN '2026-11-01T12:00:00Z' ELSE '2026-10-20T12:00:00Z' END
+         WHEN 3 THEN '2026-10-20T12:00:00Z'
+         ELSE '2026-11-05T12:00:00Z'
+       END, 'user', 'synthetic', (n%7=0 AND idx=199)
+FROM seq CROSS JOIN msg;
+COMMIT;`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("built 2,000 sessions / 400,000 messages in %s", time.Since(started))
+	since, until := "2026-10-10 00:00:00", "2026-10-25 00:00:00"
+	for _, tc := range []struct {
+		name        string
+		rng         timeRange
+		harness     string
+		projects    []string
+		includeSelf bool
+	}{
+		{"bounded", timeRange{since, until}, "all", nil, false},
+		{"since-only", timeRange{Since: since}, "all", nil, false},
+		{"until-only", timeRange{Until: until}, "all", nil, false},
+		{"harness", timeRange{since, until}, "codex", nil, false},
+		{"project", timeRange{since, until}, "all", []string{"APP"}, false},
+		{"combined", timeRange{since, until}, "claude", []string{"app"}, false},
+		{"include-self", timeRange{since, until}, "all", nil, true},
+		{"no-range", timeRange{}, "all", nil, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			const budget = 1500 * time.Millisecond
+			ctx, cancel := context.WithTimeout(context.Background(), budget)
+			defer cancel()
+			started := time.Now()
+			rows, err := search(ctx, db, "", tc.harness, tc.projects, 2000, false, tc.includeSelf, tc.rng)
+			elapsed := time.Since(started)
+			if err != nil || elapsed >= budget {
+				t.Fatalf("TUI empty-query search took %s (budget %s): %v", elapsed, budget, err)
+			}
+			t.Logf("TUI empty-query search: %s", elapsed)
+			cli, err := compactSearch(context.Background(), db, pageKey{
+				Harness: tc.harness, Projects: tc.projects, Limit: 2000,
+				IncludeSelf: tc.includeSelf, Since: tc.rng.Since, Until: tc.rng.Until,
+			}, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(rows) == 0 || len(rows) != cli.Total || len(rows) != len(cli.Hits) {
+				t.Fatalf("TUI rows=%d, CLI total=%d shown=%d", len(rows), cli.Total, len(cli.Hits))
+			}
+			if tc.name == "include-self" && len(rows) != 800 {
+				t.Fatalf("want 800 sessions whose last message is in range, got %d", len(rows))
+			}
+			for i, row := range rows {
+				if ref := fmt.Sprintf("%s:%d", shortID(row.UID), row.Index); ref != cli.Hits[i].Ref {
+					t.Fatalf("row %d: TUI %s, CLI %s", i, ref, cli.Hits[i].Ref)
+				}
+				if i > 0 && (rows[i-1].TS < row.TS || rows[i-1].TS == row.TS && rows[i-1].ID <= row.ID) {
+					t.Fatalf("rows not ordered by ts DESC, id DESC: %+v then %+v", rows[i-1], row)
+				}
+			}
+		})
+	}
+}
+
 func TestSearchRangeOnCommonWordPath(t *testing.T) {
 	db := ctxDB(t)
 	for i, age := range []time.Duration{24 * time.Hour, 30 * 24 * time.Hour} {
