@@ -243,10 +243,25 @@ func rolePredicate(roles []string) (string, []any) {
 	return " AND m.role IN (" + strings.TrimSuffix(strings.Repeat("?,", len(roles)), ",") + ") ", args
 }
 
-// The same FTS predicate (including the short-prefix date bound) feeds counts and pages.
+// The same search predicate (including browse and the short-prefix date bound) feeds the TUI, counts and pages.
 // score ranks hits inside a session when k.MaxPerSession is set.
-func matchSource(ctx context.Context, db *sql.DB, k pageKey, names []string, score string) (string, []any, int, error) {
+func matchSource(ctx context.Context, db *sql.DB, k pageKey, names []string, score string, countOmitted bool) (string, []any, int, error) {
 	harness := k.Harness
+	if toFTS(k.Query) == "" {
+		roleClause, args := rolePredicate(k.Roles)
+		from := `FROM sessions s JOIN messages m ON s.uid=m.session_uid WHERE m.idx=(SELECT max(idx) FROM messages m WHERE session_uid=s.uid ` + searchFilter(k.IncludeSelf, k.IncludeAutomated) + roleClause + `) `
+		if harness != "" && harness != "all" {
+			from += `AND s.harness=? `
+			args = append(args, harness)
+		}
+		clause, values := projectPredicate(k.Projects, names)
+		from += clause
+		args = append(args, values...)
+		clause, values = rangePredicate(k.rng())
+		from += clause
+		args = append(args, values...)
+		return from, args, 0, nil
+	}
 	from := `FROM messages_fts JOIN messages m ON m.id=messages_fts.rowid `
 	if harness != "" && harness != "all" || len(k.Projects) > 0 || k.Facets {
 		from += `JOIN sessions s ON s.uid=m.session_uid `
@@ -275,8 +290,11 @@ func matchSource(ctx context.Context, db *sql.DB, k pageKey, names []string, sco
 		}
 		if t, e := time.Parse(time.RFC3339Nano, latest); e == nil {
 			cutoff := t.AddDate(0, 0, -7).UTC().Format(time.RFC3339Nano)
-			if e := db.QueryRowContext(ctx, `SELECT count(*) `+from+`AND m.ts<?`, append(args, cutoff)...).Scan(&omitted); e != nil {
-				return "", nil, 0, e
+			// The TUI never displays omitted-older counts; keep that scan off its hot path.
+			if countOmitted {
+				if e := db.QueryRowContext(ctx, `SELECT count(*) `+from+`AND m.ts<?`, append(args, cutoff)...).Scan(&omitted); e != nil {
+					return "", nil, 0, e
+				}
 			}
 			from += `AND m.ts>=? `
 			args = append(args, cutoff)
@@ -311,6 +329,22 @@ func fetchPageHits(ctx context.Context, db *sql.DB, query string, args ...any) (
 
 const hitColumns = `s.uid,s.harness,s.native_id,s.project,s.cwd,s.path,m.id,m.idx,m.ts,m.role,m.text`
 
+func rankedPageHits(ctx context.Context, db *sql.DB, from string, args []any, score, role string, limit, offset int) ([]hit, error) {
+	query := `WITH ranked AS MATERIALIZED (SELECT m.id,m.ts,` + score + ` score ` + from + `AND m.role` + role + ` ORDER BY score,m.ts DESC,m.id DESC LIMIT ? OFFSET ?) SELECT ` + hitColumns + ` FROM ranked r JOIN messages m ON m.id=r.id JOIN sessions s ON s.uid=m.session_uid ORDER BY r.score,r.ts DESC,r.id DESC`
+	return fetchPageHits(ctx, db, query, append(args, limit, offset)...)
+}
+
+func newestPageHits(ctx context.Context, db *sql.DB, ids []int64) ([]hit, error) {
+	if len(ids) == 0 {
+		return []hit{}, nil
+	}
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	return fetchPageHits(ctx, db, `SELECT `+hitColumns+` FROM messages m JOIN sessions s ON s.uid=m.session_uid WHERE m.id IN (`+strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")+`) ORDER BY (m.role='tool'),m.ts DESC,m.id DESC`, args...)
+}
+
 func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitPage, error) {
 	q, harness, limit := k.Query, k.Harness, k.Limit
 	p := hitPage{Hits: []compactHit{}}
@@ -320,18 +354,10 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitP
 	}
 	var matches []hit
 	if toFTS(q) == "" {
-		roleClause, args := rolePredicate(k.Roles)
-		from := `FROM sessions s JOIN messages m ON s.uid=m.session_uid WHERE m.idx=(SELECT max(idx) FROM messages m WHERE session_uid=s.uid ` + searchFilter(k.IncludeSelf, k.IncludeAutomated) + roleClause + `) `
-		if harness != "" && harness != "all" {
-			from += `AND s.harness=? `
-			args = append(args, harness)
+		from, args, _, e := matchSource(ctx, db, k, names, "0", false)
+		if e != nil {
+			return p, e
 		}
-		clause, values := projectPredicate(k.Projects, names)
-		from += clause
-		args = append(args, values...)
-		clause, values = rangePredicate(k.rng())
-		from += clause
-		args = append(args, values...)
 		if e := db.QueryRowContext(ctx, `SELECT count(*) `+from, args...).Scan(&p.Total); e != nil {
 			return p, e
 		}
@@ -365,7 +391,7 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitP
 		if common {
 			score = `0`
 		}
-		from, args, omitted, e := matchSource(ctx, db, k, names, score)
+		from, args, omitted, e := matchSource(ctx, db, k, names, score, true)
 		if e != nil {
 			return p, e
 		}
@@ -401,19 +427,14 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitP
 					ids = append(ids, found[toolOffset:]...)
 				}
 				if len(ids) > 0 {
-					values := make([]any, len(ids))
-					for i, id := range ids {
-						values[i] = id
-					}
-					matches, e = fetchPageHits(ctx, db, `SELECT `+hitColumns+` FROM messages m JOIN sessions s ON s.uid=m.session_uid WHERE m.id IN (`+strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")+`) ORDER BY (m.role='tool'),m.ts DESC,m.id DESC`, values...)
+					matches, e = newestPageHits(ctx, db, ids)
 					if e != nil {
 						return p, e
 					}
 				}
 			} else {
 				selectTier := func(role string, n, skip int) error {
-					query := `WITH ranked AS MATERIALIZED (SELECT m.id,m.ts,` + score + ` score ` + from + `AND m.role` + role + ` ORDER BY score,m.ts DESC,m.id DESC LIMIT ? OFFSET ?) SELECT ` + hitColumns + ` FROM ranked r JOIN messages m ON m.id=r.id JOIN sessions s ON s.uid=m.session_uid ORDER BY r.score,r.ts DESC,r.id DESC`
-					found, err := fetchPageHits(ctx, db, query, append(args, n, skip)...)
+					found, err := rankedPageHits(ctx, db, from, args, score, role, n, skip)
 					matches = append(matches, found...)
 					return err
 				}
@@ -462,7 +483,7 @@ func sessionTopic(ctx context.Context, db *sql.DB, uid string) (string, error) {
 }
 
 func compactSessions(ctx context.Context, db *sql.DB, k pageKey, offset int) (sessionPage, error) {
-	q, harness, limit := k.Query, k.Harness, k.Limit
+	q, limit := k.Query, k.Limit
 	p := sessionPage{Sessions: []compactSession{}}
 	names, err := matchingProjects(ctx, db, k.Projects)
 	if err != nil {
@@ -471,19 +492,11 @@ func compactSessions(ctx context.Context, db *sql.DB, k pageKey, offset int) (se
 	var query string
 	args := []any{}
 	if toFTS(q) == "" {
-		roleClause, roleArgs := rolePredicate(k.Roles)
-		args = append(args, roleArgs...)
-		from := `FROM sessions s JOIN messages m ON s.uid=m.session_uid WHERE m.idx=(SELECT max(idx) FROM messages m WHERE session_uid=s.uid ` + searchFilter(k.IncludeSelf, k.IncludeAutomated) + roleClause + `) `
-		if harness != "" && harness != "all" {
-			from += `AND s.harness=? `
-			args = append(args, harness)
+		from, values, _, e := matchSource(ctx, db, k, names, "0", false)
+		if e != nil {
+			return p, e
 		}
-		clause, values := projectPredicate(k.Projects, names)
-		from += clause
-		args = append(args, values...)
-		clause, values = rangePredicate(k.rng())
-		from += clause
-		args = append(args, values...)
+		args = values
 		if e := db.QueryRowContext(ctx, `SELECT count(*) `+from, args...).Scan(&p.Total); e != nil {
 			return p, e
 		}
@@ -495,7 +508,7 @@ func compactSessions(ctx context.Context, db *sql.DB, k pageKey, offset int) (se
 		}
 		query = `SELECT s.uid,s.harness,s.project,m.ts,m.text,1,m.idx,(m.role='user'),(m.role='asst'),(m.role='tool') ` + from + `ORDER BY (m.role='tool'),m.ts DESC,m.id DESC LIMIT ? OFFSET ?`
 	} else {
-		from, values, omitted, e := matchSource(ctx, db, k, names, "")
+		from, values, omitted, e := matchSource(ctx, db, k, names, "", true)
 		if e != nil {
 			return p, e
 		}

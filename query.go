@@ -355,30 +355,14 @@ func newestMatches(ctx context.Context, db *sql.DB, match, harness string, proje
 }
 
 func search(ctx context.Context, db *sql.DB, q, harness string, projects []string, limit int, allTime, includeSelf, includeAutomated bool, rng timeRange) ([]hit, error) {
+	k := pageKey{Query: q, Harness: harness, Projects: projects, Limit: limit, AllTime: allTime, IncludeSelf: includeSelf, IncludeAutomated: includeAutomated, Since: rng.Since, Until: rng.Until}
 	match := toFTS(q)
 	names, err := matchingProjects(ctx, db, projects)
 	if err != nil {
 		return nil, err
 	}
 	started := time.Now()
-	var sqlq string
-	args := []any{}
 	out := []hit{}
-	fetch := func(query string, values ...any) error {
-		rows, e := db.QueryContext(ctx, query, values...)
-		if e != nil {
-			return e
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var x hit
-			if e = rows.Scan(&x.UID, &x.Harness, &x.SessionID, &x.Project, &x.CWD, &x.Path, &x.ID, &x.Index, &x.TS, &x.Role, &x.Text); e != nil {
-				return e
-			}
-			out = append(out, x)
-		}
-		return rows.Err()
-	}
 	common := false
 	if match != "" && !shortLatin(q) {
 		var e error
@@ -387,24 +371,11 @@ func search(ctx context.Context, db *sql.DB, q, harness string, projects []strin
 			return nil, e
 		}
 	}
-	if match == "" {
-		sqlq = `SELECT s.uid,s.harness,s.native_id,s.project,s.cwd,s.path,m.id,m.idx,m.ts,m.role,m.text FROM sessions s JOIN messages m ON s.uid=m.session_uid WHERE m.idx=(SELECT max(idx) FROM messages m WHERE session_uid=s.uid ` + searchFilter(includeSelf, includeAutomated) + `) `
-		if harness != "" && harness != "all" {
-			sqlq += `AND s.harness=? `
-			args = append(args, harness)
-		}
-		clause, values := projectPredicate(projects, names)
-		sqlq += clause
-		args = append(args, values...)
-		clause, values = rangePredicate(rng)
-		sqlq += clause
-		args = append(args, values...)
-		sqlq += `ORDER BY m.ts DESC,m.id DESC LIMIT ?`
-		args = append(args, limit)
-	} else if common {
-		ids, e := newestMatches(ctx, db, match, harness, projects, names, false, includeSelf, includeAutomated, rng, limit)
-		if e != nil {
-			return nil, e
+	var e error
+	if common {
+		ids, err := newestMatches(ctx, db, match, harness, projects, names, false, includeSelf, includeAutomated, rng, limit)
+		if err != nil {
+			return nil, err
 		}
 		if len(ids) < limit {
 			tools, err := newestMatches(ctx, db, match, harness, projects, names, true, includeSelf, includeAutomated, rng, limit-len(ids))
@@ -413,53 +384,22 @@ func search(ctx context.Context, db *sql.DB, q, harness string, projects []strin
 			}
 			ids = append(ids, tools...)
 		}
-		if len(ids) == 0 {
-			timing("query", started)
-			return []hit{}, nil
-		}
-		sqlq = `SELECT s.uid,s.harness,s.native_id,s.project,s.cwd,s.path,m.id,m.idx,m.ts,m.role,m.text FROM messages m JOIN sessions s ON s.uid=m.session_uid WHERE m.id IN (` + strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",") + `) ORDER BY (m.role='tool'),m.ts DESC,m.id DESC`
-		for _, id := range ids {
-			args = append(args, id)
-		}
+		out, e = newestPageHits(ctx, db, ids)
 	} else {
-		sqlq = `WITH ranked AS MATERIALIZED (SELECT m.id,m.ts,bm25(messages_fts) score FROM messages_fts JOIN messages m ON m.id=messages_fts.rowid `
-		if harness != "" && harness != "all" || len(projects) > 0 {
-			sqlq += `JOIN sessions s ON s.uid=m.session_uid `
+		from, args, _, err := matchSource(ctx, db, k, names, "bm25(messages_fts)", false)
+		if err != nil {
+			return nil, err
 		}
-		sqlq += `WHERE messages_fts MATCH ? ` + searchFilter(includeSelf, includeAutomated)
-		args = append(args, match)
-		if shortLatin(q) && !allTime && !rng.active() {
-			var latest string
-			if e := db.QueryRowContext(ctx, `SELECT coalesce(max(m.ts),'') FROM messages m WHERE 1 `+searchFilter(includeSelf, includeAutomated)).Scan(&latest); e != nil {
-				return nil, e
-			}
-			if t, e := time.Parse(time.RFC3339Nano, latest); e == nil {
-				sqlq += `AND m.ts>=? `
-				args = append(args, t.AddDate(0, 0, -7).UTC().Format(time.RFC3339Nano))
+		if match == "" {
+			out, e = fetchPageHits(ctx, db, `SELECT `+hitColumns+` `+from+`ORDER BY m.ts DESC,m.id DESC LIMIT ?`, append(args, limit)...)
+		} else {
+			out, e = rankedPageHits(ctx, db, from, args, "bm25(messages_fts)", `!='tool'`, limit, 0)
+			if e == nil && len(out) < limit {
+				var tools []hit
+				tools, e = rankedPageHits(ctx, db, from, args, "bm25(messages_fts)", `='tool'`, limit-len(out), 0)
+				out = append(out, tools...)
 			}
 		}
-		if harness != "" && harness != "all" {
-			sqlq += `AND s.harness=? `
-			args = append(args, harness)
-		}
-		clause, values := projectPredicate(projects, names)
-		sqlq += clause
-		args = append(args, values...)
-		clause, values = rangePredicate(rng)
-		sqlq += clause
-		args = append(args, values...)
-	}
-	var e error
-	if match != "" && !common {
-		query := func(role string) string {
-			return sqlq + `AND m.role` + role + ` ORDER BY score,m.ts DESC,m.id DESC LIMIT ?) SELECT s.uid,s.harness,s.native_id,s.project,s.cwd,s.path,m.id,m.idx,m.ts,m.role,m.text FROM ranked r JOIN messages m ON m.id=r.id JOIN sessions s ON s.uid=m.session_uid ORDER BY r.score,r.ts DESC,r.id DESC`
-		}
-		e = fetch(query(`!='tool'`), append(args, limit)...)
-		if e == nil && len(out) < limit {
-			e = fetch(query(`='tool'`), append(args, limit-len(out))...)
-		}
-	} else {
-		e = fetch(sqlq, args...)
 	}
 	timing("query", started)
 	if e != nil {
@@ -491,7 +431,7 @@ func searchTotals(ctx context.Context, db *sql.DB, k pageKey, shown int) (int, i
 	if err != nil {
 		return 0, 0, err
 	}
-	from, args, _, err := matchSource(ctx, db, k, names, "0")
+	from, args, _, err := matchSource(ctx, db, k, names, "0", false)
 	if err != nil {
 		return 0, 0, err
 	}
