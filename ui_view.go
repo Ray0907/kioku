@@ -31,6 +31,11 @@ func (m model) View() string {
 			sessions[r.UID] = true
 		}
 		count = fmt.Sprintf("%d messages · %d sessions", len(m.rows), len(sessions))
+		if m.total > len(m.rows) {
+			count = fmt.Sprintf("%d of %d messages · %d sessions", len(m.rows), m.total, m.totalSessions)
+		} else if m.total == 0 && len(m.rows) > 0 && len(m.rows) == m.limit {
+			count += " shown"
+		}
 	}
 	if m.fresh > 0 && m.progress == "" {
 		count += fmt.Sprintf(" · %d new · r refreshes", m.fresh)

@@ -35,6 +35,7 @@ type model struct {
 	harness                    string
 	projects                   []string
 	rows                       []hit
+	total, totalSessions       int
 	messages                   []message
 	hitIndex                   map[int]bool
 	sel, cursor, width, height int
@@ -69,9 +70,10 @@ const (
 )
 
 type resultMsg struct {
-	revision int
-	rows     []hit
-	err      error
+	revision             int
+	rows                 []hit
+	total, totalSessions int
+	err                  error
 }
 type loadMsg struct {
 	revision int
@@ -190,7 +192,12 @@ type syncEnvelope struct {
 func queryCmd(ctx context.Context, db *sql.DB, q, h string, projects []string, limit, rev int, allTime, includeSelf bool, rng timeRange) tea.Cmd {
 	return func() tea.Msg {
 		rows, e := search(ctx, db, q, h, projects, limit, allTime, includeSelf, rng)
-		return resultMsg{rev, rows, e}
+		if e != nil {
+			return resultMsg{revision: rev, err: e}
+		}
+		k := pageKey{Query: q, Harness: h, Projects: projects, Limit: limit, AllTime: allTime, IncludeSelf: includeSelf, Since: rng.Since, Until: rng.Until}
+		total, sessions, e := searchTotals(ctx, db, k, len(rows))
+		return resultMsg{revision: rev, rows: rows, total: total, totalSessions: sessions, err: e}
 	}
 }
 func (m *model) requestQuery() tea.Cmd {
@@ -327,6 +334,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			} else {
 				m.rows = x.rows
+				m.total, m.totalSessions = x.total, x.totalSessions
 				m.sel = 0
 				return m, m.requestLoad()
 			}
