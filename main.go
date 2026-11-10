@@ -291,6 +291,9 @@ func run() error {
 	if index {
 		syncStart := time.Now()
 		s, e := syncIndex(db, *rebuild, nil)
+		for _, warning := range s.Warnings {
+			fmt.Fprintln(os.Stderr, "kioku: "+warning)
+		}
 		timing("sync", syncStart)
 		if e != nil {
 			return e
