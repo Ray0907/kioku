@@ -59,6 +59,10 @@ func loadAgy() (*agyStore, error) {
 		return nil, e
 	}
 	defer db.Close()
+	return loadAgySessions(root, db)
+}
+
+func loadAgySessions(root string, db *sql.DB) (*agyStore, error) {
 	rows, e := db.Query(`SELECT conversation_id, COALESCE(workspace_uris,'[]'),
 COALESCE(last_modified_time,''), COALESCE(step_count,0) FROM conversation_summaries
 WHERE parent_conversation_id IS NULL OR parent_conversation_id=''`)
@@ -187,6 +191,10 @@ func (a *agyStore) parse(src agySession) (session, error) {
 		return s, e
 	}
 	defer db.Close()
+	return parseAgySteps(s, db)
+}
+
+func parseAgySteps(s session, db *sql.DB) (session, error) {
 	rows, e := db.Query("SELECT step_type,step_payload FROM steps ORDER BY idx")
 	if e != nil {
 		return s, e

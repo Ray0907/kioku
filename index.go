@@ -279,6 +279,7 @@ func discover(db *sql.DB, rebuild bool) (map[string]string, map[string]int64, bo
 type syncStats struct {
 	Files, Changed, Skipped int
 	Messages                map[string]int
+	Warnings                []string
 }
 
 func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, error) {
@@ -326,7 +327,7 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 		if source.err == nil {
 			continue
 		}
-		fmt.Fprintln(os.Stderr, "kioku: "+source.harness+":", source.err)
+		stats.Warnings = append(stats.Warnings, fmt.Sprintf("%s: %v", source.harness, source.err))
 		stats.Skipped++
 		// A failed scan is not evidence that previously indexed sessions disappeared.
 		rows, e := db.Query("SELECT path FROM sessions WHERE harness=?", source.harness)
@@ -364,7 +365,7 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 		for p, src := range agySessions {
 			files[p] = "agy"
 			if src.err != nil {
-				fmt.Fprintf(os.Stderr, "kioku: agy: %s: %v\n", p, src.err)
+				stats.Warnings = append(stats.Warnings, fmt.Sprintf("agy: %s: %v", p, src.err))
 				stats.Skipped++
 				agyFailed = true // Keep cached rows for invalid metadata, also on rebuild.
 				continue

@@ -131,6 +131,9 @@ finally:
  subprocess.run(['tmux','kill-session','-t',name],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 with sqlite3.connect(meta) as db: db.execute("DELETE FROM conversation_summaries WHERE conversation_id='agy-demo'")
 assert page('--sessions','--harness','agy')['total']==0
+checks=json.loads(run('doctor','--json'))
+agy_check=next(c for c in checks if c['name']=='Antigravity CLI')
+assert agy_check['ok'] and '3 skipped:' in agy_check['detail'] and 'agy-bad-workspace.db' in agy_check['detail'] and 'workspace_uris' in agy_check['detail'],agy_check
 print('PASS: Agy search/CJK, roles/order, MCP, resume command and cwd, wire recovery, bad workspace rows and cached data, no-op, WAL signals, read-only stores, doctor, failed scan retention, overrides, and deletion.')
 PY
 then record 'Agy: protobuf sessions, WAL sync, resume, doctor' PASS $((SECONDS-start)) "$(<"$SCREENS/agy.txt")"; else record 'Agy: protobuf sessions, WAL sync, resume, doctor' FAIL $((SECONDS-start)) "$(<"$SCREENS/agy.txt")"; fi

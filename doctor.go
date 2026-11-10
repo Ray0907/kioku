@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/mattn/go-isatty"
@@ -55,6 +56,7 @@ func runDoctor(args []string) error {
 		} else {
 			count := 0
 			unit := "session files"
+			warnings := ""
 			if err == nil {
 				if source.harness == "opencode" {
 					unit = "sessions"
@@ -66,6 +68,9 @@ func runDoctor(args []string) error {
 					db, cleanup, err = doctorReadDB(path)
 					if err == nil {
 						err = db.QueryRow(`SELECT count(*) FROM conversation_summaries WHERE parent_conversation_id IS NULL OR parent_conversation_id=''`).Scan(&count)
+						if err == nil {
+							warnings, err = doctorAgyWarnings(filepath.Dir(path), db)
+						}
 						cleanup()
 					}
 				} else if !info.IsDir() {
@@ -84,7 +89,7 @@ func runDoctor(args []string) error {
 			}
 			sessions += count
 			c.OK = err == nil || errors.Is(err, errDoctorBusy)
-			c.Detail = fmt.Sprintf("%s, %d %s", path, count, unit)
+			c.Detail = fmt.Sprintf("%s, %d %s", path, count, unit) + warnings
 			if errors.Is(err, errDoctorBusy) {
 				c.Detail = path
 			}
@@ -166,6 +171,48 @@ func doctorIndex(hasSessions bool) doctorCheck {
 		c.Detail += ": " + err.Error()
 	}
 	return c
+}
+
+func doctorAgyWarnings(root string, db *sql.DB) (string, error) {
+	agy, err := loadAgySessions(root, db)
+	if err != nil || agy == nil {
+		return "", err
+	}
+	paths := make([]string, 0, len(agy.sessions))
+	for path := range agy.sessions {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	skipped, first := 0, ""
+	for _, path := range paths {
+		src := agy.sessions[path]
+		err := src.err
+		if err == nil && src.steps == 0 {
+			err = errNoMessages
+		}
+		if err == nil {
+			var db *sql.DB
+			var cleanup func()
+			db, cleanup, err = doctorReadDB(path)
+			if err == nil {
+				_, err = parseAgySteps(src.session, db)
+				cleanup()
+			}
+		}
+		if errors.Is(err, errDoctorBusy) {
+			return "", err
+		}
+		if err != nil {
+			skipped++
+			if first == "" {
+				first = fmt.Sprintf("%s: %v", path, err)
+			}
+		}
+	}
+	if skipped == 0 {
+		return "", nil
+	}
+	return fmt.Sprintf(", %d skipped: %s", skipped, first), nil
 }
 
 func doctorOpencode(path string) (int, error) {
