@@ -22,9 +22,9 @@ type palette struct {
 }
 
 var light = palette{"#b6322d", "#606a74", "#d2e3f9", "#eef3f9", "#2a64b0", "#e3eaf3", [3]string{"#fde89a", "#bdfac8", "#ffe0f2"},
-	map[string]string{"claude": "#8d5d1c", "codex": "#147175", "pi": "#3b723e"}}
+	harnessColors(false)}
 var dark = palette{"#f6857a", "#95a0ab", "#293647", "#232a35", "#7fb0ee", "#303a49", [3]string{"#3c3207", "#193b22", "#492537"},
-	map[string]string{"claude": "#ddae6c", "codex": "#76c7cc", "pi": "#8fc990"}}
+	harnessColors(true)}
 
 type pen struct {
 	word  string
@@ -416,7 +416,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if key == "tab" || key == "shift+tab" {
-			hs := []string{"all", "claude", "codex", "pi", "grok", "opencode", "cursor", "agy"}
+			hs := harnessNames()
 			for i, h := range hs {
 				if h == m.harness {
 					step := 1
@@ -710,24 +710,10 @@ func (m model) agentGlyph(h string) string {
 	return m.color(agentMark(h), c)
 }
 func agentMark(h string) string {
-	switch h {
-	case "claude":
-		return "✻"
-	case "codex":
-		return "◇"
-	case "pi":
-		return "π"
-	case "grok":
-		return "✕"
-	case "opencode":
-		return "▢"
-	case "cursor":
-		return "↖"
-	case "agy":
-		return "a"
-	default:
-		return "?"
+	if h := findHarness(h); h != nil {
+		return h.mark
 	}
+	return "?"
 }
 
 // ANSI-aware grapheme width; ambiguous-width characters occupy one cell.

@@ -73,22 +73,22 @@ type hit struct {
 
 // Structured arguments let native clients launch without parsing shell text.
 func resumeArgv(h, id, path, cwd string) []string {
-	switch h {
-	case "claude":
-		return []string{"claude", "--resume", id}
-	case "codex":
-		return []string{"codex", "resume", id}
-	case "opencode":
-		return []string{"opencode", "--session", id}
-	case "agy":
-		return []string{"agy", "--conversation", id}
-	case "cursor":
-		return []string{"cursor-agent", "--resume", id}
-	case "grok":
-		return []string{"cd", cwd}
-	default:
-		return []string{"pi", "--session", path}
+	spec := findHarness(h)
+	if spec == nil {
+		spec = findHarness("pi")
 	}
+	args := append([]string(nil), spec.resume...)
+	for i, arg := range args {
+		switch arg {
+		case "{id}":
+			args[i] = id
+		case "{path}":
+			args[i] = path
+		case "{cwd}":
+			args[i] = cwd
+		}
+	}
+	return args
 }
 func resumeCmd(h, id, path, cwd string) string {
 	args := resumeArgv(h, id, path, cwd)

@@ -170,6 +170,10 @@ func (m model) bgRow(s string, w int, hex string) string {
 }
 func (m *model) pageLines(w int) []string {
 	if m.help {
+		var agents []string
+		for _, h := range harnesses {
+			agents = append(agents, h.mark+" "+h.label)
+		}
 		return []string{
 			"  focus    ▌ in query = search; ↓ moves to results",
 			"  query    space = AND · quotes = phrase · -word = exclude",
@@ -187,7 +191,7 @@ func (m *model) pageLines(w int) []string {
 			"  y       copy resume command",
 			"  enter   exit and resume in original cwd; apply prompt",
 			"  tab / shift+tab next / previous agent (all or one harness)",
-			"  agents   ✻ claude   ◇ codex   π pi   ✕ grok   ▢ opencode   ↖ cursor   a agy",
+			"  agents   " + strings.Join(agents, "   "),
 			"  ?       show / close help from results",
 			"  esc     cancel prompt / leave query / quit from results",
 			"  ctrl+c  quit",
