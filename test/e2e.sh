@@ -39,6 +39,29 @@ source "$TEST/e2e/self.sh"
 source "$TEST/e2e/index.sh"
 source "$TEST/e2e/search.sh"
 source "$TEST/e2e/tui.sh"
+
+start=$SECONDS; long_ok=1; LONGHOME="$TMP/long-home"
+python3 - "$LONGHOME" <<'PY'
+import json,pathlib,sys
+h=pathlib.Path(sys.argv[1]); p=h/'.claude/projects/demo/long.jsonl'; p.parent.mkdir(parents=True)
+text='\n'.join(f'B6LONG line {i:03d}' for i in range(1,201))
+p.write_text(json.dumps({'type':'assistant','timestamp':'2026-11-11T12:00:00Z','cwd':str(h),'sessionId':'b6-long','message':{'role':'assistant','content':[{'type':'text','text':text}]}})+'\n')
+PY
+tmux new-session -d -x 100 -y 30 -s "htool-$$" "cd '$TMP' && HOME='$LONGHOME' KIOKU_INDEX='$LONGHOME/index.db' KIOKU_THEME=light TERM=xterm-256color exec '$BIN' B6LONG" 2>/dev/null
+sleep 1
+capture=$(tmux capture-pane -t "htool-$$" -p 2>&1)
+grep -q 'B6LONG line 001' <<<"$capture" || long_ok=0
+if grep -q 'B6LONG line 200' <<<"$capture"; then long_ok=0; fi
+tmux send-keys -t "htool-$$" Down
+for ((i=0;i<30;i++)); do tmux send-keys -t "htool-$$" NPage; done
+sleep .3; capture=$(tmux capture-pane -t "htool-$$" -p 2>&1)
+grep -q 'B6LONG line 200' <<<"$capture" || long_ok=0
+for ((i=0;i<30;i++)); do tmux send-keys -t "htool-$$" PPage; done
+sleep .3; capture=$(tmux capture-pane -t "htool-$$" -p 2>&1)
+grep -q 'B6LONG line 001' <<<"$capture" || long_ok=0
+tmux kill-session -t "htool-$$" 2>/dev/null || :
+if ((long_ok)); then record 'TUI: page through a 200-line message and back' PASS $((SECONDS-start)) 'PgDn reaches line 200; PgUp returns to line 001'; else record 'TUI: page through a 200-line message and back' FAIL $((SECONDS-start)) "$capture"; fi
+
 source "$TEST/e2e/perf.sh"
 source "$TEST/e2e/real.sh"
 printf '\n**Summary:** %d PASS, %d FAIL.\n' "$PASS" "$FAIL" >> "$REPORT"
