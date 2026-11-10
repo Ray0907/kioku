@@ -2,7 +2,7 @@
 # Sourced by e2e.sh after building; uses only a synthetic HOME.
 start=$SECONDS
 if python3 - "$BIN" "$H/mcp-home" "$TEST" <<'PY' > "$H/mcp-output.txt" 2>&1
-import hashlib,json,os,pathlib,subprocess,sys
+import datetime,hashlib,json,os,pathlib,subprocess,sys
 binary,home,test=sys.argv[1:]; home=pathlib.Path(home); test=pathlib.Path(test)
 subprocess.run([str(test/'fixture.sh'),str(home)],check=True,stdout=subprocess.DEVNULL)
 long='mcplongtoken '+('mock text <tag> 魚池\n'*150)
@@ -11,7 +11,34 @@ source.write_text('\n'.join(json.dumps(row) for row in [
  {'type':'session','version':3,'id':'mcp-mock','timestamp':'2026-09-27T12:00:00Z','cwd':'/work/demo'},
  *[{'type':'message','id':f'mcp-message-{i}','timestamp':f'2026-09-27T12:00:{i+1:02d}Z','message':{'role':'user','content':[{'type':'text','text':long if i==0 else f'mock context {i}'}]}} for i in range(13)]
 ])+'\n')
-env=dict(os.environ,HOME=str(home),KIOKU_INDEX=str(home/'index.db'),KIOKU_DEBUG_TIMING='1')
+now=datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z')
+def session(name,messages):
+ path=source.with_name(name+'.jsonl')
+ rows=[{'type':'session','version':3,'id':name,'timestamp':now,'cwd':'/work/demo'}]
+ for i,(role,text) in enumerate(messages):
+  rows.append({'type':'message','id':f'{name}-{i}','timestamp':now,'message':{'role':role,'content':[{'type':'text','text':text}]}})
+ path.write_text('\n'.join(json.dumps(row) for row in rows)+'\n')
+session('mcp-bulk',[('user',f'bulk question {i}') for i in range(130)])
+outline_messages=[('user','outline question one'),('assistant','intermediate one'),('toolResult','tool output one'),
+ ('assistant','final reply one'),('toolResult','trailing tool output'),('user','outline question two'),
+ ('assistant','intermediate two'),('toolResult','tool output two'),('assistant','final reply two'),('user','pending question')]
+session('mcp-outline',outline_messages)
+parts=lambda *texts: [{'type':'text','text':text} for text in texts]
+source.with_name('mcp-multipart.jsonl').write_text('\n'.join(json.dumps(row) for row in [
+ {'type':'session','version':3,'id':'mcp-multipart','timestamp':now,'cwd':'/work/demo'},
+ *[{'type':'message','id':f'multipart-{i}','timestamp':now,'message':{'role':role,'content':content}}
+   for i,(role,content) in enumerate([
+    ('user',parts('multipart question')),
+    ('assistant',parts('intermediate answer','intermediate footnote')),
+    ('toolResult',parts('multipart tool output')),
+    ('assistant',parts('complete final answer','final detail','final footnote')),
+    ('user',parts('multipart pending question'))])]
+])+'\n')
+env=dict(os.environ,HOME=str(home),KIOKU_INDEX=str(home/'index.db'),KIOKU_DEBUG_TIMING='1',CLAUDE_PROJECT_DIR='/work/demo')
+def cli_text(*args):
+ p=subprocess.run([binary,*args],env=env,text=True,capture_output=True,timeout=30)
+ assert p.returncode==0,p.stderr
+ return p.stdout
 def cli(*args):
  p=subprocess.run([binary,*args],env=env,text=True,capture_output=True,timeout=30)
  assert p.returncode==0,p.stderr
@@ -60,16 +87,18 @@ passed('initialize and ping preserve numeric/string request IDs')
 tools={tool['name']:tool for tool in by_id[2]['result']['tools']}
 expected={'kioku_search':({'query','harness','project','limit','cursor','all_time','include_self','since','until','facets','max_per_session'},'query'),
  'kioku_sessions':({'query','harness','project','limit','cursor','since','until','facets'},'query'),
- 'kioku_show':({'ref','context','query','full','all','cursor'},'ref')}
+ 'kioku_show':({'ref','context','query','full','all','cursor','limit','outline'},'ref'),
+ 'kioku_context':(set(),None)}
 assert tools.keys()==expected.keys()
 for name,(properties,required) in expected.items():
  tool=tools[name]; schema=tool['inputSchema']
  assert tool['annotations']['readOnlyHint'] is True and schema['type']=='object'
- assert set(schema['properties'])==properties and schema['required']==[required] and schema['additionalProperties'] is False,schema
- assert schema['properties'][required]['type']=='string'
+ assert set(schema['properties'])==properties and schema['required']==([required] if required else []) and schema['additionalProperties'] is False,schema
+ if required: assert schema['properties'][required]['type']=='string'
  for key in properties:
-  assert schema['properties'][key]['type']==('boolean' if key in {'all_time','include_self','full','all','facets'} else 'integer' if key in {'context','limit','max_per_session'} else 'string')
-passed('three read-only tools expose complete, strict input schemas; no rebuild')
+  assert schema['properties'][key]['type']==('boolean' if key in {'all_time','include_self','full','all','facets','outline'} else 'integer' if key in {'context','limit','max_per_session'} else 'string')
+assert tools['kioku_show']['inputSchema']['properties']['limit']=={'type':'integer','minimum':1,'maximum':100,'default':10}
+passed('four read-only tools expose complete, strict input schemas; no rebuild')
 def page(i):
  result=by_id[i]['result']; assert not result.get('isError',False),result
  assert len(result['content'])==1 and result['content'][0]['type']=='text',result
@@ -96,7 +125,77 @@ assert page(14)==cli('--json','') and page(15)==cli('--json','--sessions','')
 passed('harness/project/all_time/include_self/all flags and empty-query browsing match CLI')
 assert 'timing ' in stderr
 passed('debug logs go to stderr')
-errors=[('unknown_tool',{}),('kioku_search',{}),('kioku_search',{'query':7}),
+rows,_=pipe([call(20,'kioku_show',{'ref':'mcp-bulk','all':True,'limit':12}),
+ call(21,'kioku_show',{'ref':'mcp-bulk','all':True,'limit':10000}),
+ call(22,'kioku_show',{'ref':'mcp-bulk','all':True}),
+ call(23,'kioku_show',{'ref':'mcp-outline','outline':True}),
+ call(24,'kioku_show',{'ref':'mcp-outline','outline':True,'limit':2}),
+ call(25,'kioku_context',{})])
+by_id={row['id']:row for row in rows}
+assert page(20)['shown']==12 and page(20)==cli('show','mcp-bulk','--json','--all','--limit','12')
+assert page(21)['shown']==100 and page(21)['next_cursor'] and page(22)['shown']==10
+capped=page(21)
+rows,_=pipe([call(26,'kioku_show',{'ref':'mcp-bulk','all':True,'limit':10000,'cursor':capped['next_cursor']})])
+by_id[26]=rows[0]
+assert page(26)['shown']==30 and not page(26).get('next_cursor')
+passed('show limit defaults to 10, accepts 12, caps huge limits at 100 and pages the remainder')
+outline=page(23)
+assert [m['text'] for m in outline['messages']]==['outline question one','final reply one','outline question two','final reply two','pending question'],outline
+assert [m['role'] for m in outline['messages']]==['user','asst','user','asst','user']
+assert outline['total']==5 and outline['session_total']==10
+assert outline==cli('show','mcp-outline','--json','--outline')
+assert 'tool output' not in cli_text('show','mcp-outline','--outline')
+assert 'final reply two' in cli_text('show','mcp-outline','--outline','--format','md')
+passed('outline skips tools and intermediate replies, retains final replies and a trailing user; CLI text/JSON/Markdown agree')
+p=page(24); collected=[]
+while True:
+ collected.extend(p['messages'])
+ if not p.get('next_cursor'): break
+ args={'ref':'mcp-outline','outline':True,'limit':2,'cursor':p['next_cursor']}
+ rows,_=pipe([call(27,'kioku_show',args)]); by_id[27]=rows[0]
+ p=page(27)
+ assert p==cli('show','mcp-outline','--json','--outline','--limit','2','--cursor',args['cursor'])
+assert collected==outline['messages']
+passed('outline pagination covers each selected message once and cursors interoperate with CLI')
+args={'ref':'mcp-multipart','outline':True,'limit':2}; collected=[]
+while True:
+ rows,_=pipe([call(30,'kioku_show',args)]); by_id[30]=rows[0]
+ p=page(30)
+ cli_args=['show','mcp-multipart','--json','--outline','--limit','2']
+ if 'cursor' in args: cli_args+=['--cursor',args['cursor']]
+ assert p==cli(*cli_args)
+ collected.extend(m['text'] for m in p['messages'])
+ if not p.get('next_cursor'): break
+ args['cursor']=p['next_cursor']
+assert collected==['multipart question','complete final answer','final detail','final footnote','multipart pending question'],collected
+assert 'complete final answer' in cli_text('show','mcp-multipart','--outline')
+assert 'final detail' in cli_text('show','mcp-multipart','--outline','--format','md')
+passed('multipart outline preserves every final-reply text block across MCP/CLI pages and omits intermediate blocks')
+context=by_id[25]['result']; assert not context.get('isError',False),context
+assert context['content']==[{'type':'text','text':cli_text('context')}]
+assert 'last asked:' in context['content'][0]['text']
+env['CLAUDE_PROJECT_DIR']='/no-history'
+rows,_=pipe([call(28,'kioku_context',{})])
+assert rows[0]['result']['content']==[{'type':'text','text':cli_text('context')}]==[{'type':'text','text':''}]
+env['CLAUDE_PROJECT_DIR']='/work/demo'
+index=env['KIOKU_INDEX']; env['KIOKU_INDEX']=str(home/'missing-index.db')
+rows,_=pipe([call(29,'kioku_context',{})])
+assert rows[0]['result']['content']==[{'type':'text','text':cli_text('context')}]==[{'type':'text','text':''}]
+assert not pathlib.Path(env['KIOKU_INDEX']).exists()
+env['KIOKU_INDEX']=index
+passed('context tool returns byte-identical CLI project context, including empty history and a missing index')
+corrupt=home/'corrupt-index.db'; corrupt.write_bytes(b'not a SQLite database')
+for bad_index in [corrupt,corrupt/'index.db']:
+ env['KIOKU_INDEX']=str(bad_index)
+ rows,_=pipe([call(31,'kioku_context',{})])
+ result=rows[0]['result']
+ assert result.get('isError') is True and result['content'][0]['text'],result
+ assert cli_text('context')==''
+env['KIOKU_INDEX']=index
+passed('context reports corrupt-index and stat failures as MCP tool errors while CLI session starts stay silent and successful')
+errors=[('kioku_show',{'ref':'mcp-bulk','limit':0}),('kioku_show',{'ref':'mcp-bulk','limit':-1}),
+ ('kioku_show',{'ref':'mcp-bulk','limit':1.5}),('kioku_show',{'ref':'mcp-outline','outline':'yes'}),
+ ('kioku_context',{'project':'demo'}),('unknown_tool',{}),('kioku_search',{}),('kioku_search',{'query':7}),
  ('kioku_search',{'query':'snapshot','limit':0}),('kioku_search',{'query':'snapshot','limit':1.5}),
  ('kioku_search',{'query':'snapshot','harness':'unknown'}),('kioku_search',{'query':'snapshot','project':''}),
  ('kioku_search',{'query':'snapshot','rebuild':True}),('kioku_search',{'query':'snapshot','full':True}),

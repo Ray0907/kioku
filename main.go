@@ -62,6 +62,7 @@ Flags: --json (one JSON page), --limit N (default 10 for pages, 300 for TUI),
        --facets (add hit counts per project, harness and week; sessions: project, harness),
        --max-per-session N (search: keep the N best hits of each session),
        --all (show: whole session), --full (show: untruncated hit),
+       --outline (show: user messages and each turn's last reply, no tools),
        --format md (show: Markdown to paste into an issue or PR; not with --json),
        --no-mouse, --rebuild (index), --version, --help, -h.
 Stats: kioku stats [--since D] [--until D] [-p NAME] [--harness H] [--json]
@@ -156,6 +157,7 @@ func run() error {
 	includeSelf := fs.Bool("include-self", false, "include kioku tool calls and results")
 	all := fs.Bool("all", false, "show full session")
 	full := fs.Bool("full", false, "show selected message without truncation")
+	outline := fs.Bool("outline", false, "show user messages and each turn's last reply, no tools")
 	sessions := fs.Bool("sessions", false, "group by session")
 	format := fs.String("format", "text", "show output: text or md")
 	since := fs.String("since", "", "only messages at or after this date")
@@ -207,7 +209,7 @@ func run() error {
 			continue
 		}
 		switch a {
-		case "--rebuild", "--json", "--no-mouse", "--version", "--sessions", "--all-time", "--include-self", "--all", "--full", "--facets":
+		case "--rebuild", "--json", "--no-mouse", "--version", "--sessions", "--all-time", "--include-self", "--all", "--full", "--outline", "--facets":
 			if e := fs.Parse([]string{a}); e != nil {
 				return e
 			}
@@ -276,6 +278,9 @@ func run() error {
 	if !show && *full {
 		return fmt.Errorf("--full requires show")
 	}
+	if !show && *outline {
+		return fmt.Errorf("--outline requires show")
+	}
 	if !show && *showQuery != "" {
 		return fmt.Errorf("--query requires show")
 	}
@@ -320,7 +325,7 @@ func run() error {
 			mode = "show"
 			q = *showQuery
 		}
-		key := pageKey{Mode: mode, Query: q, Harness: *harness, Projects: projects, Limit: *limit, Context: *contextSize, JSON: *jsonFlag, AllTime: *allTime && shortLatin(q), IncludeSelf: *includeSelf, All: *all, Full: *full, NoMouse: *noMouse, Rebuild: *rebuild, Since: rng.Since, Until: rng.Until, Facets: *facets, MaxPerSession: *maxPerSession}
+		key := pageKey{Mode: mode, Query: q, Harness: *harness, Projects: projects, Limit: *limit, Context: *contextSize, JSON: *jsonFlag, AllTime: *allTime && shortLatin(q), IncludeSelf: *includeSelf, All: *all, Full: *full, Outline: *outline, NoMouse: *noMouse, Rebuild: *rebuild, Since: rng.Since, Until: rng.Until, Facets: *facets, MaxPerSession: *maxPerSession}
 		if show {
 			key.Ref = words[0]
 		}

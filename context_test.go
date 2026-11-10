@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -37,6 +38,25 @@ func addSession(t *testing.T, db *sql.DB, uid, harness, cwd string, ago time.Dur
 		if _, e := db.Exec(`INSERT INTO messages(session_uid,idx,ts,role,text,self) VALUES(?,?,?,?,?,0)`, uid, i/2, ts(i/2), msgs[i], msgs[i+1]); e != nil {
 			t.Fatal(e)
 		}
+	}
+}
+
+func TestContextIndexErrors(t *testing.T) {
+	doctorHome(t)
+	path := filepath.Join(t.TempDir(), "corrupt.db")
+	if err := os.WriteFile(path, []byte("not a SQLite database"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, index := range []string{path, filepath.Join(path, "index.db")} {
+		t.Run(index, func(t *testing.T) {
+			t.Setenv("KIOKU_INDEX", index)
+			if text, err := mcpCall([]byte(`{"name":"kioku_context","arguments":{}}`)); err == nil || text != "" {
+				t.Fatalf("MCP must report index failures: text=%q err=%v", text, err)
+			}
+			if text, err := runArgs(t, "context"); err != nil || text != "" {
+				t.Fatalf("CLI must suppress session-start failures: text=%q err=%v", text, err)
+			}
+		})
 	}
 }
 

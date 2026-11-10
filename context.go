@@ -136,28 +136,36 @@ func firstLine(s string) string {
 // runContext prints contextText for the working directory. It never fails a session start:
 // no index, no history, or any error prints nothing and exits 0.
 func runContext(args []string) error {
-	dir := os.Getenv("CLAUDE_PROJECT_DIR")
-	if dir == "" {
-		dir, _ = os.Getwd()
-	}
 	if len(args) > 0 {
 		return fmt.Errorf("context takes no arguments")
 	}
+	text, _ := currentContext()
+	fmt.Fprint(output, text)
+	return nil
+}
+
+func currentContext() (string, error) {
+	dir := os.Getenv("CLAUDE_PROJECT_DIR")
+	if dir == "" {
+		var e error
+		dir, e = os.Getwd()
+		if e != nil {
+			return "", e
+		}
+	}
 	if _, e := os.Stat(indexPath()); e != nil {
-		return nil
+		if os.IsNotExist(e) {
+			return "", nil
+		}
+		return "", e
 	}
 	db, e := openDB()
 	if e != nil {
-		return nil
+		return "", e
 	}
 	defer db.Close()
 	if _, e = syncIndex(db, false, nil); e != nil {
-		return nil
+		return "", e
 	}
-	text, e := contextText(context.Background(), db, dir, time.Now())
-	if e != nil {
-		return nil
-	}
-	fmt.Fprint(output, text)
-	return nil
+	return contextText(context.Background(), db, dir, time.Now())
 }
