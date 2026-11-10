@@ -1,0 +1,41 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install tmux
+        run: brew install tmux
+      - name: Vet
+        run: go vet -tags sqlite_fts5 ./...
+      - name: Unit tests
+        run: go test -tags sqlite_fts5 ./...
+      - name: E2E tests
+        run: test/e2e.sh
+      - name: Range E2E tests
+        run: test/range_e2e.sh
+      - name: Views E2E tests
+        run: test/views_e2e.sh
+      - name: Upload failure reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-failure-reports
+          path: |
+            test/e2e-report.md
+            test/BUGS.md
