@@ -207,7 +207,7 @@ func compactShow(ctx context.Context, db *sql.DB, k pageKey, offset int) (showPa
 		return p, fmt.Errorf("message %d not found in session %q", selected, ref)
 	}
 	start, end := 0, count
-	if !k.All {
+	if !k.All && !k.Outline {
 		if selected < 0 {
 			selected = -1
 			end = min(count, k.Context+1)
@@ -220,6 +220,25 @@ func compactShow(ctx context.Context, db *sql.DB, k pageKey, offset int) (showPa
 	}
 	p.Total = end - start
 	p.SessionTotal = count
+	// shortcut: the index has no reply IDs; group adjacent same-timestamp text blocks until it does.
+	outlineFilter := ` AND m.idx IN (
+		SELECT part.idx FROM messages part JOIN (
+			SELECT min(idx) AS first_idx,max(idx) AS last_idx,role,
+				lead(role) OVER (ORDER BY min(idx)) AS next_role
+			FROM (
+				SELECT idx,role,ts,CASE WHEN role='asst' THEN
+					idx-row_number() OVER (PARTITION BY role,ts ORDER BY idx)
+					ELSE idx END AS block
+				FROM messages WHERE session_uid=?
+			) WHERE role IN ('user','asst') GROUP BY role,ts,block
+		) reply ON part.idx BETWEEN first_idx AND last_idx
+		WHERE part.session_uid=? AND (reply.role='user' OR next_role='user' OR next_role IS NULL)
+	)`
+	if k.Outline {
+		if e = db.QueryRowContext(ctx, `SELECT count(*) FROM messages m WHERE session_uid=?`+outlineFilter, uid, uid, uid).Scan(&p.Total); e != nil {
+			return p, e
+		}
+	}
 	if selected >= 0 && !k.All {
 		n := selected
 		p.HitIndex = &n
@@ -246,8 +265,16 @@ func compactShow(ctx context.Context, db *sql.DB, k pageKey, offset int) (showPa
 			matched = `1 ` + selfFilter(k.IncludeSelf) + `AND EXISTS(SELECT 1 FROM messages_fts WHERE messages_fts.rowid=m.id AND messages_fts MATCH ?)`
 			args = append(args, match)
 		}
-		args = append(args, uid, start+offset, end, k.Limit)
-		msgs, err := db.QueryContext(ctx, `SELECT idx,ts,role,text,`+matched+` FROM messages m WHERE session_uid=? AND idx>=? AND idx<? ORDER BY idx LIMIT ?`, args...)
+		query := `SELECT idx,ts,role,text,` + matched + ` FROM messages m WHERE session_uid=?`
+		args = append(args, uid)
+		if k.Outline {
+			query += outlineFilter + ` ORDER BY idx LIMIT ? OFFSET ?`
+			args = append(args, uid, uid, k.Limit, offset)
+		} else {
+			query += ` AND idx>=? AND idx<? ORDER BY idx LIMIT ?`
+			args = append(args, start+offset, end, k.Limit)
+		}
+		msgs, err := db.QueryContext(ctx, query, args...)
 		if err != nil {
 			return p, err
 		}
@@ -272,6 +299,10 @@ func compactShow(ctx context.Context, db *sql.DB, k pageKey, offset int) (showPa
 			default:
 				visible = ansi.Truncate(displayInline(text), 400, "…")
 			}
+			if len(p.Messages) == 0 {
+				p.Start = idx
+			}
+			p.End = idx
 			p.Messages = append(p.Messages, showMessage{Time: hm, Role: role, Text: visible, Hit: idx == selected, Full: fullHit, Highlights: highlightRanges(visible, k.Query), Matches: matches})
 		}
 		if err == nil {
@@ -283,9 +314,6 @@ func compactShow(ctx context.Context, db *sql.DB, k pageKey, offset int) (showPa
 		}
 	}
 	p.Shown = len(p.Messages)
-	if p.Shown > 0 {
-		p.Start, p.End = start+offset, start+offset+p.Shown-1
-	}
 	p.NextCursor = nextCursor(k, offset, p.Shown, p.Total)
 	return p, nil
 }

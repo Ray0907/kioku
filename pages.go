@@ -22,6 +22,7 @@ type pageKey struct {
 	Projects                                   []string
 	Limit, Context                             int
 	JSON, AllTime, All, Full, NoMouse, Rebuild bool
+	Outline                                    bool   `json:",omitempty"`
 	IncludeSelf                                bool   `json:",omitempty"`
 	Since, Until                               string `json:",omitempty"`
 	Facets                                     bool   `json:",omitempty"`

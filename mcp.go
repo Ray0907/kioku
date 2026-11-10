@@ -51,14 +51,17 @@ func mcpTools() []mcpTool {
 			"until":   {"type": "string", "minLength": 1, "description": "Only messages before the end of this date; same forms as since. A date covers that whole day."},
 			"facets":  {"type": "boolean", "default": false, "description": "Also return hit counts per project, harness and week to help narrow the next search."},
 		}}},
-		{Name: "kioku_show", Description: "Read a message ref or session ID. Text is capped unless full=true (only the selected message); all=true pages the whole session, 10 messages at a time.", InputSchema: mcpSchema{Required: []string{"ref"}, Properties: map[string]map[string]any{
+		{Name: "kioku_show", Description: "Read a message ref or session ID. Text is capped unless full=true (only the selected message). all=true pages the whole session; outline=true pages user messages and each turn's last assistant reply, without tools. limit defaults to 10, capped at 100.", InputSchema: mcpSchema{Required: []string{"ref"}, Properties: map[string]map[string]any{
 			"ref":     {"type": "string", "minLength": 1},
+			"limit":   {"type": "integer", "minimum": 1, "maximum": 100, "default": 10},
+			"outline": {"type": "boolean", "default": false},
 			"context": {"type": "integer", "minimum": 0, "default": 3},
 			"query":   {"type": "string"},
 			"full":    {"type": "boolean", "default": false},
 			"all":     {"type": "boolean", "default": false},
 			"cursor":  {"type": "string"},
 		}}},
+		{Name: "kioku_context", Description: "Return the same recent-project handoff text as kioku context, across all harnesses. Uses CLAUDE_PROJECT_DIR or the server's working directory; empty when no recent history or index is available. Takes no arguments.", InputSchema: mcpSchema{Required: []string{}, Properties: map[string]map[string]any{}}},
 	}
 	for i := range tools {
 		tools[i].InputSchema.Type = "object"
@@ -83,6 +86,7 @@ type mcpArguments struct {
 	MaxPerSession int    `json:"max_per_session"`
 	Full          bool   `json:"full"`
 	All           bool   `json:"all"`
+	Outline       bool   `json:"outline"`
 }
 
 func mcpCall(params json.RawMessage) (string, error) {
@@ -124,6 +128,9 @@ func mcpCall(params json.RawMessage) (string, error) {
 	if err := json.Unmarshal(call.Arguments, &a); err != nil {
 		return "", fmt.Errorf("invalid arguments: %w", err)
 	}
+	if call.Name == "kioku_context" {
+		return currentContext()
+	}
 	if a.Limit < 1 {
 		return "", fmt.Errorf("limit must be a positive integer")
 	}
@@ -155,12 +162,13 @@ func mcpCall(params json.RawMessage) (string, error) {
 		mode = "sessions"
 	}
 	if call.Name == "kioku_show" {
+		a.Limit = min(a.Limit, 100)
 		mode = "show"
 		if a.Ref == "" {
 			return "", fmt.Errorf("ref cannot be empty")
 		}
 	}
-	key := pageKey{Mode: mode, Query: a.Query, Harness: a.Harness, Projects: projects, Limit: a.Limit, Context: a.Context, JSON: true, Ref: a.Ref, AllTime: a.AllTime && shortLatin(a.Query), IncludeSelf: a.IncludeSelf, Full: a.Full, All: a.All, Since: rng.Since, Until: rng.Until, Facets: a.Facets, MaxPerSession: a.MaxPerSession}
+	key := pageKey{Mode: mode, Query: a.Query, Harness: a.Harness, Projects: projects, Limit: a.Limit, Context: a.Context, JSON: true, Ref: a.Ref, AllTime: a.AllTime && shortLatin(a.Query), IncludeSelf: a.IncludeSelf, Full: a.Full, All: a.All, Outline: a.Outline, Since: rng.Since, Until: rng.Until, Facets: a.Facets, MaxPerSession: a.MaxPerSession}
 	offset, err := key.offset(a.Cursor)
 	if err != nil {
 		return "", err
