@@ -3,14 +3,15 @@
   "tools": [
     "kioku_search",
     "kioku_sessions",
-    "kioku_show"
+    "kioku_show",
+    "kioku_context"
   ],
-  "pass": 16,
+  "pass": 22,
   "fail": 0,
   "checks": [
     "stdout contains JSON-RPC lines only; initialized notification has no reply",
     "initialize and ping preserve numeric/string request IDs",
-    "three read-only tools expose complete, strict input schemas; no rebuild",
+    "four read-only tools expose complete, strict input schemas; no rebuild",
     "search JSON matches --json",
     "sessions JSON matches --json",
     "show JSON matches --json",
@@ -18,6 +19,12 @@
     "show caps text by default; full=true returns only the full selected message",
     "harness/project/all_time/include_self/all flags and empty-query browsing match CLI",
     "debug logs go to stderr",
+    "show limit defaults to 10, accepts 12, caps huge limits at 100 and pages the remainder",
+    "outline skips tools and intermediate replies, retains final replies and a trailing user; CLI text/JSON/Markdown agree",
+    "outline pagination covers each selected message once and cursors interoperate with CLI",
+    "multipart outline preserves every final-reply text block across MCP/CLI pages and omits intermediate blocks",
+    "context tool returns byte-identical CLI project context, including empty history and a missing index",
+    "context reports corrupt-index and stat failures as MCP tool errors while CLI session starts stay silent and successful",
     "unknown tools, missing/wrong/null/extra arguments, invalid cursors and query errors are tool errors",
     "malformed lines and protocol errors recover; notifications never reply",
     "oversized requests are discarded with null-ID -32600; next ping succeeds",
