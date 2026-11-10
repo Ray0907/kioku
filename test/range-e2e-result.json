@@ -4,7 +4,7 @@
   "fail": 0,
   "checks": [
     "default JSON output is byte-identical to v0.7.0 for search, sessions, browse, short prefix, common word",
-    "index schema is identical to v0.7.0",
+    "index schema matches v0.7.0 except the added sessions.automated column",
     "--since DATE includes a message at 00:00:00 and one at 00:00:00.5; excludes 23:59:59.999 the day before",
     "--until DATE is inclusive of that whole day (23:59:59.999 in, next midnight out)",
     "RFC3339 bounds work at second precision",

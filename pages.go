@@ -25,6 +25,7 @@ type pageKey struct {
 	JSON, AllTime, All, Full, NoMouse, Rebuild bool
 	Outline                                    bool   `json:",omitempty"`
 	IncludeSelf                                bool   `json:",omitempty"`
+	IncludeAutomated                           bool   `json:",omitempty"`
 	Since, Until                               string `json:",omitempty"`
 	Facets                                     bool   `json:",omitempty"`
 	MaxPerSession                              int    `json:",omitempty"`
@@ -250,7 +251,7 @@ func matchSource(ctx context.Context, db *sql.DB, k pageKey, names []string, sco
 	if harness != "" && harness != "all" || len(k.Projects) > 0 || k.Facets {
 		from += `JOIN sessions s ON s.uid=m.session_uid `
 	}
-	from += `WHERE messages_fts MATCH ? ` + selfFilter(k.IncludeSelf)
+	from += `WHERE messages_fts MATCH ? ` + searchFilter(k.IncludeSelf, k.IncludeAutomated)
 	args := []any{toFTS(k.Query)}
 	roleClause, roleArgs := rolePredicate(k.Roles)
 	from += roleClause
@@ -269,7 +270,7 @@ func matchSource(ctx context.Context, db *sql.DB, k pageKey, names []string, sco
 	// An explicit range replaces the implicit short-prefix window.
 	if shortLatin(k.Query) && !k.AllTime && !k.rng().active() {
 		var latest string
-		if e := db.QueryRowContext(ctx, `SELECT coalesce(max(m.ts),'') FROM messages m WHERE 1 `+selfFilter(k.IncludeSelf)).Scan(&latest); e != nil {
+		if e := db.QueryRowContext(ctx, `SELECT coalesce(max(m.ts),'') FROM messages m WHERE 1 `+searchFilter(k.IncludeSelf, k.IncludeAutomated)).Scan(&latest); e != nil {
 			return "", nil, 0, e
 		}
 		if t, e := time.Parse(time.RFC3339Nano, latest); e == nil {
@@ -320,7 +321,7 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitP
 	var matches []hit
 	if toFTS(q) == "" {
 		roleClause, args := rolePredicate(k.Roles)
-		from := `FROM sessions s JOIN messages m ON s.uid=m.session_uid WHERE m.idx=(SELECT max(idx) FROM messages m WHERE session_uid=s.uid ` + selfFilter(k.IncludeSelf) + roleClause + `) `
+		from := `FROM sessions s JOIN messages m ON s.uid=m.session_uid WHERE m.idx=(SELECT max(idx) FROM messages m WHERE session_uid=s.uid ` + searchFilter(k.IncludeSelf, k.IncludeAutomated) + roleClause + `) `
 		if harness != "" && harness != "all" {
 			from += `AND s.harness=? `
 			args = append(args, harness)
@@ -385,7 +386,7 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitP
 			if common && k.MaxPerSession == 0 && len(k.Roles) == 0 {
 				ids := []int64{}
 				if offset < conversations {
-					found, err := newestMatches(ctx, db, toFTS(q), harness, k.Projects, names, false, k.IncludeSelf, k.rng(), min(conversations, offset+limit))
+					found, err := newestMatches(ctx, db, toFTS(q), harness, k.Projects, names, false, k.IncludeSelf, k.IncludeAutomated, k.rng(), min(conversations, offset+limit))
 					if err != nil {
 						return p, err
 					}
@@ -393,7 +394,7 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitP
 				}
 				if offset+limit > conversations && p.Total > conversations {
 					toolOffset := max(0, offset-conversations)
-					found, err := newestMatches(ctx, db, toFTS(q), harness, k.Projects, names, true, k.IncludeSelf, k.rng(), min(p.Total-conversations, offset+limit-conversations))
+					found, err := newestMatches(ctx, db, toFTS(q), harness, k.Projects, names, true, k.IncludeSelf, k.IncludeAutomated, k.rng(), min(p.Total-conversations, offset+limit-conversations))
 					if err != nil {
 						return p, err
 					}
@@ -472,7 +473,7 @@ func compactSessions(ctx context.Context, db *sql.DB, k pageKey, offset int) (se
 	if toFTS(q) == "" {
 		roleClause, roleArgs := rolePredicate(k.Roles)
 		args = append(args, roleArgs...)
-		from := `FROM sessions s JOIN messages m ON s.uid=m.session_uid WHERE m.idx=(SELECT max(idx) FROM messages m WHERE session_uid=s.uid ` + selfFilter(k.IncludeSelf) + roleClause + `) `
+		from := `FROM sessions s JOIN messages m ON s.uid=m.session_uid WHERE m.idx=(SELECT max(idx) FROM messages m WHERE session_uid=s.uid ` + searchFilter(k.IncludeSelf, k.IncludeAutomated) + roleClause + `) `
 		if harness != "" && harness != "all" {
 			from += `AND s.harness=? `
 			args = append(args, harness)
