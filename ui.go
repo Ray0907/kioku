@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -107,6 +108,19 @@ func parseSyncEvery(s string) (time.Duration, error) {
 }
 
 type debounce int
+
+func deleteQueryWord(q string) string {
+	runes := []rune(strings.TrimRightFunc(q, unicode.IsSpace))
+	i := len(runes)
+	if i == 0 {
+		return ""
+	}
+	cjk := isCJK(runes[i-1])
+	for i > 0 && !unicode.IsSpace(runes[i-1]) && isCJK(runes[i-1]) == cjk {
+		i--
+	}
+	return string(runes[:i])
+}
 
 func newModel(db *sql.DB, q, h string, projects []string, rows []hit, mouse bool, limit int, includeSelf bool) model {
 	p := light
@@ -234,8 +248,9 @@ func (m *model) requestLoad() tea.Cmd {
 	if m.sel < m.offset {
 		m.offset = m.sel
 	}
-	if m.sel >= m.offset+m.listHeight() {
-		m.offset = m.sel - m.listHeight() + 1
+	listH := max(1, m.listHeight())
+	if m.sel >= m.offset+listH {
+		m.offset = m.sel - listH + 1
 	}
 	if len(m.rows) == 0 {
 		m.messages, m.hitIndex, m.loadedKey = nil, map[int]bool{}, ""
@@ -436,6 +451,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.refresh()
 			case "ctrl+u":
 				m.q = ""
+				return m, m.refresh()
+			case "ctrl+w":
+				m.q = deleteQueryWord(m.q)
 				return m, m.refresh()
 			default:
 				if x.Type == tea.KeyRunes || x.Type == tea.KeySpace {
@@ -653,7 +671,7 @@ func (m model) chromeRows() int {
 	return m.headerRows() + 2
 }
 func (m model) listHeight() int {
-	if m.full {
+	if m.full || m.help {
 		return 0
 	}
 	return max(2, (m.height-5)*38/100)

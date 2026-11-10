@@ -85,7 +85,7 @@ assert init['protocolVersion']=='2025-06-18' and init['serverInfo']['name']=='ki
 assert by_id['mock-string-id']['result']=={}
 passed('initialize and ping preserve numeric/string request IDs')
 tools={tool['name']:tool for tool in by_id[2]['result']['tools']}
-expected={'kioku_search':({'query','harness','project','limit','cursor','all_time','include_self','since','until','facets','max_per_session'},'query'),
+expected={'kioku_search':({'query','harness','project','limit','cursor','all_time','include_self','since','until','facets','max_per_session','role'},'query'),
  'kioku_sessions':({'query','harness','project','limit','cursor','since','until','facets'},'query'),
  'kioku_show':({'ref','context','query','full','all','cursor','limit','outline'},'ref'),
  'kioku_context':(set(),None)}

@@ -40,6 +40,7 @@ func mcpTools() []mcpTool {
 			"until":           {"type": "string", "minLength": 1, "description": "Only messages before the end of this date; same forms as since. A date covers that whole day."},
 			"facets":          {"type": "boolean", "default": false, "description": "Also return hit counts per project, harness and week to help narrow the next search."},
 			"max_per_session": {"type": "integer", "minimum": 1, "description": "Keep at most N hits per session so one session cannot fill the page."},
+			"role":            {"type": "string", "minLength": 1, "description": "Filter roles: user, asst or tool; comma-separated lists allowed."},
 		}}},
 		{Name: "kioku_sessions", Description: "Find local agent sessions ranked by best hit, with compact snippets and topics. Empty query browses recent sessions.", InputSchema: mcpSchema{Required: []string{"query"}, Properties: map[string]map[string]any{
 			"query":   {"type": "string"},
@@ -74,6 +75,7 @@ type mcpArguments struct {
 	Query         string `json:"query"`
 	Harness       string `json:"harness"`
 	Project       string `json:"project"`
+	Role          string `json:"role"`
 	Limit         int    `json:"limit"`
 	Cursor        string `json:"cursor"`
 	Ref           string `json:"ref"`
@@ -151,6 +153,12 @@ func mcpCall(params json.RawMessage) (string, error) {
 	if _, ok := fields["max_per_session"]; ok && a.MaxPerSession < 1 {
 		return "", fmt.Errorf("max_per_session must be a positive integer")
 	}
+	var roles []string
+	if _, ok := fields["role"]; ok {
+		if roles, err = parseRoles(a.Role); err != nil {
+			return "", err
+		}
+	}
 	var projects projectFlags
 	if _, ok := fields["project"]; ok {
 		if err := projects.Set(a.Project); err != nil {
@@ -168,7 +176,7 @@ func mcpCall(params json.RawMessage) (string, error) {
 			return "", fmt.Errorf("ref cannot be empty")
 		}
 	}
-	key := pageKey{Mode: mode, Query: a.Query, Harness: a.Harness, Projects: projects, Limit: a.Limit, Context: a.Context, JSON: true, Ref: a.Ref, AllTime: a.AllTime && shortLatin(a.Query), IncludeSelf: a.IncludeSelf, Full: a.Full, All: a.All, Outline: a.Outline, Since: rng.Since, Until: rng.Until, Facets: a.Facets, MaxPerSession: a.MaxPerSession}
+	key := pageKey{Mode: mode, Query: a.Query, Harness: a.Harness, Projects: projects, Roles: roles, Limit: a.Limit, Context: a.Context, JSON: true, Ref: a.Ref, AllTime: a.AllTime && shortLatin(a.Query), IncludeSelf: a.IncludeSelf, Full: a.Full, All: a.All, Outline: a.Outline, Since: rng.Since, Until: rng.Until, Facets: a.Facets, MaxPerSession: a.MaxPerSession}
 	offset, err := key.offset(a.Cursor)
 	if err != nil {
 		return "", err

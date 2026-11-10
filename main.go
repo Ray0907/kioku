@@ -56,6 +56,7 @@ Flags: --json (one JSON page), --limit N (default 10 for pages, 300 for TUI),
        --context N (show: before/after, default 3), --query Q (center show hit),
        --all-time (search: include older short-prefix matches),
        --include-self (search: include kioku tool calls and results),
+       --role user|asst|tool (search, --sessions: comma-separated roles; prints results),
        --since D, --until D (search, --sessions: date range in local time; D is
          YYYY-MM-DD, RFC3339, Nd, Nw, today or yesterday; a date as --until
          covers that whole day; an explicit range replaces the short-prefix window),
@@ -155,6 +156,7 @@ func run() error {
 	contextSize := fs.Int("context", 3, "messages before and after")
 	allTime := fs.Bool("all-time", false, "include older short-prefix matches")
 	includeSelf := fs.Bool("include-self", false, "include kioku tool calls and results")
+	role := fs.String("role", "", "filter roles: user, asst or tool (comma-separated)")
 	all := fs.Bool("all", false, "show full session")
 	full := fs.Bool("full", false, "show selected message without truncation")
 	outline := fs.Bool("outline", false, "show user messages and each turn's last reply, no tools")
@@ -171,7 +173,7 @@ func run() error {
 	fs.Var(&projects, "p", "filter project basename (repeatable)")
 	ver := fs.Bool("version", false, "print version")
 	// Flags may precede or follow the query.
-	valued := map[string]bool{"--limit": true, "--cursor": true, "--context": true, "--query": true, "--project": true, "-p": true, "--since": true, "--until": true, "--max-per-session": true, "--format": true}
+	valued := map[string]bool{"--limit": true, "--cursor": true, "--context": true, "--query": true, "--project": true, "-p": true, "--since": true, "--until": true, "--max-per-session": true, "--format": true, "--role": true}
 	var words []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -221,7 +223,7 @@ func run() error {
 		fmt.Fprintln(output, version)
 		return nil
 	}
-	setLimit, setSince, setUntil, setCap := false, false, false, false
+	setLimit, setSince, setUntil, setCap, setRole := false, false, false, false, false
 	fs.Visit(func(f *flag.Flag) {
 		switch f.Name {
 		case "limit":
@@ -232,14 +234,23 @@ func run() error {
 			setUntil = true
 		case "max-per-session":
 			setCap = true
+		case "role":
+			setRole = true
 		}
 	})
+	var roles []string
+	if setRole {
+		var e error
+		if roles, e = parseRoles(*role); e != nil {
+			return e
+		}
+	}
 	rng, e := resolveRange(*since, *until, setSince, setUntil, time.Now())
 	if e != nil {
 		return e
 	}
-	// The TUI starts with no range and has no facet or cap controls; never launch it with flags it would ignore.
-	filtered := rng.active() || *facets || setCap
+	// The TUI has no range, facet, cap or role flags; never launch it with filters it would ignore.
+	filtered := rng.active() || *facets || setCap || setRole
 	oneShot := show || *sessions || *jsonFlag || *cursor != "" || filtered || !isatty.IsTerminal(os.Stdout.Fd())
 	if !setLimit {
 		if oneShot {
@@ -258,7 +269,7 @@ func run() error {
 		return fmt.Errorf("--project applies to search and --sessions")
 	}
 	if (show || index) && filtered {
-		return fmt.Errorf("--since, --until, --facets and --max-per-session apply to search and --sessions")
+		return fmt.Errorf("--since, --until, --facets, --max-per-session and --role apply to search and --sessions")
 	}
 	if setCap && (*maxPerSession < 1 || *sessions) {
 		return fmt.Errorf("--max-per-session must be a positive integer and applies to search, not --sessions")
@@ -325,7 +336,7 @@ func run() error {
 			mode = "show"
 			q = *showQuery
 		}
-		key := pageKey{Mode: mode, Query: q, Harness: *harness, Projects: projects, Limit: *limit, Context: *contextSize, JSON: *jsonFlag, AllTime: *allTime && shortLatin(q), IncludeSelf: *includeSelf, All: *all, Full: *full, Outline: *outline, NoMouse: *noMouse, Rebuild: *rebuild, Since: rng.Since, Until: rng.Until, Facets: *facets, MaxPerSession: *maxPerSession}
+		key := pageKey{Mode: mode, Query: q, Harness: *harness, Projects: projects, Roles: roles, Limit: *limit, Context: *contextSize, JSON: *jsonFlag, AllTime: *allTime && shortLatin(q), IncludeSelf: *includeSelf, All: *all, Full: *full, Outline: *outline, NoMouse: *noMouse, Rebuild: *rebuild, Since: rng.Since, Until: rng.Until, Facets: *facets, MaxPerSession: *maxPerSession}
 		if show {
 			key.Ref = words[0]
 		}

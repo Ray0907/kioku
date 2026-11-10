@@ -117,15 +117,15 @@ func (m model) View() string {
 	} else if m.prompt == promptRange {
 		b.WriteString("  " + strong.Render("range ▸ ") + displayInline(m.status) + "▌  since..until, e.g. 7d or 2026-10-01..2026-10-07 · enter set · esc cancel")
 	} else if m.help {
-		b.WriteString("  focus · query · ↑↓ · n/N · h/H · d/D · v · o · y · enter · tab · ctrl+c")
+		b.WriteString("  esc or ? closes help · ctrl+c quits")
 	} else {
 		if m.status != "" {
 			b.WriteString("  " + strong.Render(clip(displayInline(m.status), w-4)) + "\n")
 		}
 		if m.focus {
-			b.WriteString(m.keys(w, "enter", "resume", "↓", "results", "tab", "agent", "ctrl+u", "clear"))
+			b.WriteString(m.keys(w, "enter", "resume", "↓", "list", "tab", "agent", "ctrl+w", "word", "ctrl+u", "clear"))
 		} else {
-			b.WriteString(m.keys(w, "enter", "resume", "↑↓", "move", "n/N", "next hit", "/", "search", "d", "range", "tab", "✻ ◇ π", "?", "help"))
+			b.WriteString(m.keys(w, "enter", "resume", "↑↓", "move", "/", "search", "t", "tools", "r", "sync", "?", "help"))
 		}
 	}
 	rendered := strings.Split(b.String(), "\n")
@@ -174,7 +174,28 @@ func (m model) bgRow(s string, w int, hex string) string {
 }
 func (m model) pageLines(w int) []string {
 	if m.help {
-		return []string{"  focus    ▌ in query = search; ↓ moves to results", "  query    space = AND · quotes = phrase · -word = exclude", "  ↓ / esc search to results    / results to search", "  ↑ ↓     previous / next result", "  r       sync the index, then re-run the search", "  n / N   next / previous hit in transcript", "  h / H   add highlighter / clear highlights", "  v       full transcript (hide hit list)", "  t       show / fold tool output", "  o       open directory in editor", "  y       copy resume command", "  enter   exit and resume in original cwd", "  tab     all · claude · codex · pi · grok · opencode · cursor · agy", "  agents   ✻ claude   ◇ codex   π pi   ✕ grok   ▢ opencode   ↖ cursor   a agy", "  ctrl+c  quit"}
+		return []string{
+			"  focus    ▌ in query = search; ↓ moves to results",
+			"  query    space = AND · quotes = phrase · -word = exclude",
+			"  ↓ / esc search to results    / results to search",
+			"  ↑ / k   previous result    ↓ / j next result",
+			"  backspace delete character    ctrl+u clear query",
+			"  ctrl+w  delete previous query word (Latin or CJK)",
+			"  r       sync the index, then re-run the search",
+			"  n / N   next / previous hit in transcript",
+			"  h / H   add highlighter / clear highlights",
+			"  d / D   set date range / clear date range",
+			"  v       full transcript (hide hit list)",
+			"  t       show / fold tool output",
+			"  o       open directory in editor",
+			"  y       copy resume command",
+			"  enter   exit and resume in original cwd; apply prompt",
+			"  tab / shift+tab next / previous agent (all or one harness)",
+			"  agents   ✻ claude   ◇ codex   π pi   ✕ grok   ▢ opencode   ↖ cursor   a agy",
+			"  ?       show / close help from results",
+			"  esc     cancel prompt / leave query / quit from results",
+			"  ctrl+c  quit",
+		}
 	}
 	if len(m.rows) == 0 {
 		return nil
