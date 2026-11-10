@@ -475,6 +475,23 @@ func search(ctx context.Context, db *sql.DB, q, harness string, projects []strin
 	return out, nil
 }
 
+func searchTotals(ctx context.Context, db *sql.DB, k pageKey, shown int) (int, int, error) {
+	if toFTS(k.Query) == "" || shown < k.Limit {
+		return 0, 0, nil
+	}
+	names, err := matchingProjects(ctx, db, k.Projects)
+	if err != nil {
+		return 0, 0, err
+	}
+	from, args, _, err := matchSource(ctx, db, k, names, "0")
+	if err != nil {
+		return 0, 0, err
+	}
+	var total, sessions int
+	err = db.QueryRowContext(ctx, `SELECT count(*),count(DISTINCT m.session_uid) `+from, args...).Scan(&total, &sessions)
+	return total, sessions, err
+}
+
 func transcript(ctx context.Context, db *sql.DB, uid string) ([]message, error) {
 	rows, e := db.QueryContext(ctx, "SELECT id,idx,ts,role,text FROM messages WHERE session_uid=? ORDER BY idx", uid)
 	if e != nil {
