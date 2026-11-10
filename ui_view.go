@@ -100,11 +100,7 @@ func (m model) View() string {
 		}
 		b.WriteString("\n") // breathing room before the title bar; the bar's tint does the separating
 	}
-	extra := 0
-	if m.status != "" && m.prompt == promptNone {
-		extra = 1
-	}
-	pageH := max(1, m.height-m.chromeRows()-listH-extra)
+	pageH := m.pageHeight()
 	lines := m.pageLines(w)
 	for i := 0; i < pageH; i++ {
 		if i < len(lines) {
@@ -125,7 +121,7 @@ func (m model) View() string {
 		if m.focus {
 			b.WriteString(m.keys(w, "enter", "resume", "↓", "list", "tab", "agent", "ctrl+w", "word", "ctrl+u", "clear"))
 		} else {
-			b.WriteString(m.keys(w, "enter", "resume", "↑↓", "move", "/", "search", "t", "tools", "r", "sync", "?", "help"))
+			b.WriteString(m.keys(w, "enter", "resume", "pgup/pgdown", "scroll", "t", "tools", "r", "sync", "?", "help"))
 		}
 	}
 	rendered := strings.Split(b.String(), "\n")
@@ -172,7 +168,7 @@ func (m model) bgRow(s string, w int, hex string) string {
 	// Inner foreground/bold styles reset backgrounds; restore the band after each SGR.
 	return bg + sgrCode.ReplaceAllStringFunc(pad(s, w), func(code string) string { return code + bg }) + "\x1b[49m"
 }
-func (m model) pageLines(w int) []string {
+func (m *model) pageLines(w int) []string {
 	if m.help {
 		return []string{
 			"  focus    ▌ in query = search; ↓ moves to results",
@@ -183,10 +179,10 @@ func (m model) pageLines(w int) []string {
 			"  ctrl+w  delete previous query word (Latin or CJK)",
 			"  r       sync the index, then re-run the search",
 			"  n / N   next / previous hit in transcript",
+			"  pgup / pgdown scroll transcript by a page · wheel scrolls lines",
 			"  h / H   add highlighter / clear highlights",
 			"  d / D   set date range / clear date range",
-			"  v       full transcript (hide hit list)",
-			"  t       show / fold tool output",
+			"  v       full transcript (hide hit list)    t show / fold tool output",
 			"  o       open directory in editor",
 			"  y       copy resume command",
 			"  enter   exit and resume in original cwd; apply prompt",
@@ -198,6 +194,7 @@ func (m model) pageLines(w int) []string {
 		}
 	}
 	if len(m.rows) == 0 {
+		m.transcriptOffset = 0
 		return nil
 	}
 	sel := m.rows[m.sel]
@@ -356,11 +353,7 @@ func (m model) pageLines(w int) []string {
 		}
 		return append(lines, "")
 	}
-	extra := 0
-	if m.status != "" && m.prompt == promptNone {
-		extra = 1
-	}
-	available := max(1, m.height-m.chromeRows()-m.listHeight()-extra)
+	available := m.pageHeight()
 	room := max(0, available-2)
 	fi := -1
 	for k, it := range items {
@@ -387,10 +380,10 @@ func (m model) pageLines(w int) []string {
 		trailRows = 1
 	}
 	needAbove := func() bool {
-		// Half a pane above the selection; a whole pane when the end is in view, since the page then scrolls to the bottom.
-		return lo > 0 && (before < room/2+1 || hi == len(items) && before+after+trailRows < room)
+		// Include the upward offset above a bottom-clamped viewport, not just above the selection.
+		return lo > 0 && (before < room/2+1+max(0, -m.transcriptOffset) || hi == len(items) && before+after+trailRows < room+max(0, -m.transcriptOffset))
 	}
-	needBelow := func() bool { return hi < len(items) && after < room+1 }
+	needBelow := func() bool { return hi < len(items) && after < room+1+max(0, m.transcriptOffset) }
 	for needAbove() || needBelow() {
 		if needAbove() {
 			lo--
@@ -419,8 +412,12 @@ func (m model) pageLines(w int) []string {
 	if len(out) > available {
 		// The title bar stays pinned; the body scrolls around the selected message.
 		body := out[2:]
-		start := max(0, min(len(body)-room, focus-room/2))
+		base := max(0, min(len(body)-room, focus-room/2))
+		start := max(0, min(len(body)-room, base+m.transcriptOffset))
+		m.transcriptOffset = start - base
 		out = append(out[:2:2], body[start:]...)
+	} else {
+		m.transcriptOffset = 0
 	}
 	return out
 }

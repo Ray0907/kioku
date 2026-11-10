@@ -52,7 +52,7 @@ type model struct {
 	progress                   string
 	resume                     *hit
 	pal                        palette
-	offset                     int
+	offset, transcriptOffset   int
 	cancel, loadCancel         context.CancelFunc
 	loadRevision               int
 	loadedKey                  string
@@ -241,6 +241,7 @@ func (m *model) requestLoad() tea.Cmd {
 		m.loadCancel()
 	}
 	m.loadRevision++
+	m.transcriptOffset = 0
 	m.cursor = -1
 	if m.sel >= len(m.rows) {
 		m.sel = max(0, len(m.rows)-1)
@@ -491,6 +492,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.focus = true
 		case "n", "N":
 			m.jump(key == "n")
+		case "pgdown", "pgup":
+			step := max(1, m.pageHeight()-2)
+			if key == "pgup" {
+				step = -step
+			}
+			m.transcriptOffset += step
 		case "h":
 			m.prompt = promptHighlight
 			m.status = ""
@@ -536,6 +543,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.status = copyCommand(m.rows[m.sel].ResumeCmd)
 			}
 		}
+	}
+	if m.transcriptOffset != 0 {
+		m.pageLines(m.width)
 	}
 	return m, nil
 }
@@ -583,6 +593,7 @@ func (m *model) jump(next bool) {
 			at = i
 		}
 	}
+	m.transcriptOffset = 0
 	if next {
 		m.cursor = hits[(at+1)%len(hits)]
 	} else {
@@ -648,11 +659,20 @@ func (m model) mouseUpdate(x tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		if x.Y < m.headerRows()+m.listHeight() && !m.full {
 			m.offset = max(0, min(max(0, len(m.rows)-m.listHeight()), m.offset+step))
-		} else {
-			m.cursor = max(0, min(len(m.messages)-1, m.cursor+step))
+		} else if !m.help {
+			m.transcriptOffset += step
+			m.pageLines(m.width)
 		}
 	}
 	return m, nil
+}
+
+func (m model) pageHeight() int {
+	extra := 0
+	if m.status != "" && m.prompt == promptNone {
+		extra = 1
+	}
+	return max(1, m.height-m.chromeRows()-m.listHeight()-extra)
 }
 
 // headerRows counts query, optional highlights, and a blank row.
