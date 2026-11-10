@@ -25,11 +25,7 @@ type statsReport struct {
 }
 
 func validHarness(h string) bool {
-	switch h {
-	case "all", "claude", "codex", "pi", "grok", "opencode", "cursor", "agy":
-		return true
-	}
-	return false
+	return h == "all" || findHarness(h) != nil
 }
 
 // datetime() gives UTC "YYYY-MM-DD HH:MM:SS" and orders correctly across the mixed offsets in stored stamps.
@@ -122,7 +118,7 @@ func runStats(args []string) error {
 	jsonFlag := fs.Bool("json", false, "print JSON")
 	since := fs.String("since", "", "only messages at or after this date")
 	until := fs.String("until", "", "only messages before the end of this date")
-	harness := fs.String("harness", "all", "all, claude, codex, pi, grok, opencode, cursor or agy")
+	harness := fs.String("harness", "all", harnessFlagHelp())
 	var projects projectFlags
 	fs.Var(&projects, "project", "filter project basename (repeatable)")
 	fs.Var(&projects, "p", "filter project basename (repeatable)")
