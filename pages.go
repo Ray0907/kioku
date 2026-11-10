@@ -20,6 +20,7 @@ import (
 type pageKey struct {
 	Mode, Query, Harness, Ref                  string
 	Projects                                   []string
+	Roles                                      []string `json:",omitempty"`
 	Limit, Context                             int
 	JSON, AllTime, All, Full, NoMouse, Rebuild bool
 	Outline                                    bool   `json:",omitempty"`
@@ -217,6 +218,30 @@ func renderSessions(p sessionPage, asJSON bool) error {
 	return nil
 }
 
+func parseRoles(value string) ([]string, error) {
+	roles := strings.Split(value, ",")
+	for i, role := range roles {
+		roles[i] = strings.TrimSpace(role)
+		switch roles[i] {
+		case "user", "asst", "tool":
+		default:
+			return nil, fmt.Errorf("invalid role %q: use user, asst or tool (comma-separated)", role)
+		}
+	}
+	return roles, nil
+}
+
+func rolePredicate(roles []string) (string, []any) {
+	if len(roles) == 0 {
+		return "", nil
+	}
+	args := make([]any, len(roles))
+	for i, role := range roles {
+		args[i] = role
+	}
+	return " AND m.role IN (" + strings.TrimSuffix(strings.Repeat("?,", len(roles)), ",") + ") ", args
+}
+
 // The same FTS predicate (including the short-prefix date bound) feeds counts and pages.
 // score ranks hits inside a session when k.MaxPerSession is set.
 func matchSource(ctx context.Context, db *sql.DB, k pageKey, names []string, score string) (string, []any, int, error) {
@@ -227,6 +252,9 @@ func matchSource(ctx context.Context, db *sql.DB, k pageKey, names []string, sco
 	}
 	from += `WHERE messages_fts MATCH ? ` + selfFilter(k.IncludeSelf)
 	args := []any{toFTS(k.Query)}
+	roleClause, roleArgs := rolePredicate(k.Roles)
+	from += roleClause
+	args = append(args, roleArgs...)
 	if harness != "" && harness != "all" {
 		from += `AND s.harness=? `
 		args = append(args, harness)
@@ -291,8 +319,8 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitP
 	}
 	var matches []hit
 	if toFTS(q) == "" {
-		from := `FROM sessions s JOIN messages m ON s.uid=m.session_uid WHERE m.idx=(SELECT max(idx) FROM messages m WHERE session_uid=s.uid ` + selfFilter(k.IncludeSelf) + `) `
-		args := []any{}
+		roleClause, args := rolePredicate(k.Roles)
+		from := `FROM sessions s JOIN messages m ON s.uid=m.session_uid WHERE m.idx=(SELECT max(idx) FROM messages m WHERE session_uid=s.uid ` + selfFilter(k.IncludeSelf) + roleClause + `) `
 		if harness != "" && harness != "all" {
 			from += `AND s.harness=? `
 			args = append(args, harness)
@@ -354,7 +382,7 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitP
 			return p, fmt.Errorf("cursor past end of results")
 		}
 		if offset < p.Total {
-			if common && k.MaxPerSession == 0 {
+			if common && k.MaxPerSession == 0 && len(k.Roles) == 0 {
 				ids := []int64{}
 				if offset < conversations {
 					found, err := newestMatches(ctx, db, toFTS(q), harness, k.Projects, names, false, k.IncludeSelf, k.rng(), min(conversations, offset+limit))
@@ -442,7 +470,9 @@ func compactSessions(ctx context.Context, db *sql.DB, k pageKey, offset int) (se
 	var query string
 	args := []any{}
 	if toFTS(q) == "" {
-		from := `FROM sessions s JOIN messages m ON s.uid=m.session_uid WHERE m.idx=(SELECT max(idx) FROM messages m WHERE session_uid=s.uid ` + selfFilter(k.IncludeSelf) + `) `
+		roleClause, roleArgs := rolePredicate(k.Roles)
+		args = append(args, roleArgs...)
+		from := `FROM sessions s JOIN messages m ON s.uid=m.session_uid WHERE m.idx=(SELECT max(idx) FROM messages m WHERE session_uid=s.uid ` + selfFilter(k.IncludeSelf) + roleClause + `) `
 		if harness != "" && harness != "all" {
 			from += `AND s.harness=? `
 			args = append(args, harness)
