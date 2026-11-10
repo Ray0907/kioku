@@ -26,6 +26,9 @@ jobs:
       - name: Unit tests
         run: go test -tags sqlite_fts5 ./...
       - name: E2E tests
+        # Shared runners are about 3x slower than a local machine; keep the gate for clear regressions.
+        env:
+          KIOKU_E2E_P95_MS: "600"
         run: test/e2e.sh
       - name: Range E2E tests
         run: test/range_e2e.sh
