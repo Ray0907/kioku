@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.10.0 - 2026-11-11
+
+### Added
+- `--role user|asst|tool` (a comma list is allowed; MCP `kioku_search` `role`) limits search, `--sessions`, counts, facets and paging to those message roles. An invalid role is an error.
+- `kioku show <ref> --outline` and MCP `kioku_show` `outline: true` return each user message with the complete final assistant reply of its turn and skip tool rows. MCP `kioku_show` also takes `limit` (default 10, at most 100).
+- MCP `kioku_context` returns the same text as `kioku context`, so agents without the SessionStart hook can ask for it. Index failures are reported as tool errors.
+- TUI: PgDn / PgUp scroll the transcript by a page and the mouse wheel over it moves three lines, so a message taller than the pane can be read to its end. Ctrl-W deletes the previous word in the query (CJK runs stay whole).
+- CI runs `go vet`, the unit tests and all three e2e suites on every push and pull request; the release workflow runs them before building.
+
+### Changed
+- Sessions whose first user message starts with an automated review prompt (`Review this change`, `# Review Guidelines`) are left out of search, `--sessions`, the TUI, totals and facets. `--include-automated` (MCP `include_automated`) brings them back; `show` still opens them. The index moves to schema version 4 and rebuilds once on first run, then runs VACUUM to return free pages.
+- TUI: when a search matches more than the 300 loaded rows, the header reads `300 of N messages · S sessions`.
+- TUI: the help screen lists every key, including `d` / `D`, and its footer names the keys that close it.
+- `kioku doctor` shows how many Antigravity sessions were skipped and the first error. It reads them from private snapshots and never writes to the source stores.
+- Agent CLI and MCP documentation moved from the README to `docs/agents.md`.
+
+### Fixed
+- TUI: an empty query with a date range never finished on a large index and kept showing stale rows. The range now filters each session's last message, the same as the CLI, and the TUI and CLI build their search SQL from the same code.
+- TUI: source warnings from a background sync were printed to stderr and pushed the screen up. They now appear only in `kioku index` output.
+
 ## v0.9.1 - 2026-11-06
 
 ### Fixed
