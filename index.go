@@ -292,7 +292,7 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 	if e := db.QueryRow("SELECT schema_version FROM meta").Scan(&schemaVersion); e != nil {
 		return stats, e
 	}
-	migrating := schemaVersion < 4
+	migrating := schemaVersion < 5
 	rebuild = rebuild || migrating
 	files, dirs, walked, skipped, e := discover(db, rebuild)
 	if e != nil {
@@ -562,7 +562,11 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 		if e = classifyAutomated(tx); e != nil {
 			return stats, e
 		}
-		if _, e = tx.Exec("UPDATE meta SET schema_version=4"); e != nil {
+		// The tokenizer can change between versions, and per-row deletes only match entries it produced, so rewrite the whole FTS index from the messages table.
+		if _, e = tx.Exec("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')"); e != nil {
+			return stats, e
+		}
+		if _, e = tx.Exec("UPDATE meta SET schema_version=5"); e != nil {
 			return stats, e
 		}
 	}
