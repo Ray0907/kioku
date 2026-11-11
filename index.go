@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/Ray0907/kioku/internal/cjk"
+	_ "github.com/Ray0907/fts5-cjk"
 	_ "github.com/mattn/go-sqlite3"
 )
 
