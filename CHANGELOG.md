@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.10.3 - 2026-11-11
+
+### Changed
+- fts5-cjk now comes from its Go module (`github.com/Ray0907/fts5-cjk` v0.3.0) instead of a copied `cjk.c`; update it with `go get github.com/Ray0907/fts5-cjk@latest`. The tokenizer handles run-edge characters and kana and Hangul composition differently, so the index moves to schema version 5 and rebuilds once on first run.
+
 ## v0.10.2 - 2026-11-11
 
 v0.10.0 and v0.10.1 were tagged but not published: the new CI test gate failed, first because the e2e suite ran with `CI` set (which turns off TUI colors), then because shared runners missed the local 200 ms latency budget. The suite now unsets `CI`, and CI uses a 600 ms budget (`KIOKU_E2E_P95_MS`). v0.10.2 contains all of the changes below.
