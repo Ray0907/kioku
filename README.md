@@ -171,7 +171,7 @@ Cursor CLI sessions are `~/.cursor/chats/<md5(cwd)>/<session-id>/{meta.json,stor
 
 Antigravity CLI uses `conversation_summaries.db` and `conversations/<id>.db` in its data directory. kioku reads these SQLite stores in read-only mode, with live WAL data. It reads user, assistant, and tool steps in step order. It skips child sessions and system steps. The metadata timestamp and step count control each index update; no file timestamp is used. Use `--harness agy` to select these sessions. Resume runs `agy --conversation <id>` from the session directory.
 
-Search tokenization uses [fts5-cjk](https://github.com/Ray0907/fts5-cjk), statically linked under its original license in `internal/cjk/`.
+Search tokenization uses [fts5-cjk](https://github.com/Ray0907/fts5-cjk), linked in as a Go module (`go get github.com/Ray0907/fts5-cjk@latest` to update).
 
 ## License
 
