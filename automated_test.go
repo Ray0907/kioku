@@ -281,7 +281,7 @@ INSERT INTO session_message VALUES('prompt','review','user',1,1000,1000,'{"text"
 	if err = db.QueryRow(`SELECT count(*),automated FROM sessions`).Scan(&count, &automated); err != nil {
 		t.Fatal(err)
 	}
-	if version != 4 || count != 1 || automated != 1 {
+	if version != 5 || count != 1 || automated != 1 {
 		t.Fatalf("migration did not classify retained session: version=%d count=%d automated=%d", version, count, automated)
 	}
 	if _, err = source.Exec(`ALTER TABLE unavailable RENAME TO session_v2`); err != nil {
@@ -307,7 +307,7 @@ INSERT INTO session_message VALUES('prompt','review','user',1,1000,1000,'{"text"
 	if err = db.QueryRow(`SELECT automated FROM sessions`).Scan(&automated); err != nil {
 		t.Fatal(err)
 	}
-	if version != 4 || automated != 1 {
+	if version != 5 || automated != 1 {
 		t.Fatalf("recovery did not finish classification: version=%d automated=%d", version, automated)
 	}
 }
@@ -382,5 +382,37 @@ func TestAutomatedSchemaRebuildAndVacuum(t *testing.T) {
 	}
 	if got := freePages(); got != 0 {
 		t.Fatalf("rebuild left %d free pages", got)
+	}
+}
+
+func TestTokenizerChangeRebuildsFTSIndex(t *testing.T) {
+	automatedFixture(t)
+	db, err := openDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.Exec(`UPDATE meta SET schema_version=4`); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	out, err := runArgs(t, "--json", "b7needle")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var p hitPage
+	if err = json.Unmarshal([]byte(out), &p); err != nil || p.Total != 2 {
+		t.Fatalf("index from the previous tokenizer not rebuilt: %s: %v", out, err)
+	}
+	db, err = openDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var version int
+	if err = db.QueryRow(`SELECT schema_version FROM meta`).Scan(&version); err != nil || version != 5 {
+		t.Fatalf("schema_version=%d err=%v, want 5", version, err)
+	}
+	if _, err = db.Exec(`INSERT INTO messages_fts(messages_fts, rank) VALUES('integrity-check', 1)`); err != nil {
+		t.Fatalf("fts index inconsistent with messages: %v", err)
 	}
 }
