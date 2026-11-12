@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.10.4 - 2026-11-12
+
+### Security
+- Built with Go 1.26.11, which fixes 25 standard-library vulnerabilities reported by `govulncheck` (`net/http`, `crypto/tls`, `crypto/x509`, `archive/tar` and others) that `kioku update` could reach. `golang.org/x/text` and `golang.org/x/sys` are updated to their fixed versions. `govulncheck` now reports none.
+
 ## v0.10.3 - 2026-11-11
 
 ### Changed
