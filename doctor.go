@@ -41,10 +41,12 @@ func runDoctor(args []string) error {
 	checks := []doctorCheck{}
 	sourceRoots := roots()
 	sessions := 0
-	for _, source := range []struct{ harness, name string }{{"claude", "Claude Code"}, {"codex", "Codex"}, {"pi", "Pi"}, {"grok", "Grok"}, {"opencode", "OpenCode"}, {"cursor", "Cursor CLI"}, {"agy", "Antigravity CLI"}} {
+	for _, source := range []struct{ harness, name string }{{"claude", "Claude Code"}, {"codex", "Codex"}, {"pi", "Pi"}, {"grok", "Grok"}, {"opencode", "OpenCode"}, {"cursor", "Cursor CLI"}, {"hermes", "Hermes Agent"}, {"agy", "Antigravity CLI"}} {
 		path := sourceRoots[source.harness]
 		if source.harness == "opencode" {
 			path = opencodePath()
+		} else if source.harness == "hermes" {
+			path = hermesPath()
 		} else if source.harness == "agy" {
 			path = filepath.Join(agyDir(), "conversation_summaries.db")
 		}
@@ -61,6 +63,9 @@ func runDoctor(args []string) error {
 				if source.harness == "opencode" {
 					unit = "sessions"
 					count, err = doctorOpencode(path)
+				} else if source.harness == "hermes" {
+					unit = "sessions"
+					count, err = doctorHermes(path)
 				} else if source.harness == "agy" {
 					unit = "sessions"
 					var db *sql.DB

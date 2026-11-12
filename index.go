@@ -324,12 +324,17 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 		defer opencode.close()
 	}
 	opencodeFailed := err != nil
+	hermes, hermesErr := loadHermes()
+	if hermes != nil {
+		defer hermes.close()
+	}
+	hermesFailed := hermesErr != nil
 	agy, agyErr := loadAgy()
 	agyFailed := agyErr != nil
 	for _, source := range []struct {
 		harness string
 		err     error
-	}{{"opencode", err}, {"agy", agyErr}} {
+	}{{"opencode", err}, {"agy", agyErr}, {"hermes", hermesErr}} {
 		if source.err == nil {
 			continue
 		}
@@ -379,6 +384,15 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 		}
 		sort.Strings(paths)
 	}
+	hermesSessions := map[string]hermesSession{}
+	if hermes != nil {
+		hermesSessions = hermes.sessions
+		for p := range hermesSessions {
+			files[p] = "hermes"
+			paths = append(paths, p)
+		}
+		sort.Strings(paths)
+	}
 	stats.Files = len(files)
 	timing("sync_stat", started)
 	started = time.Now()
@@ -397,7 +411,7 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 			}
 		}
 	}
-	if rebuild && !opencodeFailed && !agyFailed {
+	if rebuild && !opencodeFailed && !agyFailed && !hermesFailed {
 		for _, table := range []string{"messages", "sessions", "sources"} {
 			if _, e = tx.Exec("DELETE FROM " + table); e != nil {
 				return stats, e
@@ -436,12 +450,18 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 		}
 		src, opencodeSource := opSessions[p]
 		agySrc, agySource := agySessions[p]
-		dbSource := opencodeSource || agySource
+		hermesSrc, hermesSource := hermesSessions[p]
+		dbSource := opencodeSource || agySource || hermesSource
 		cursorSource := files[p] == "cursor"
 		mtime, size, inode, updated := int64(0), int64(0), int64(0), int64(0)
 		v, ok := old[p]
 		ok = ok && !rebuild // Failed DB scans retain rows; other sources still rebuild.
-		if agySource {
+		if hermesSource {
+			updated, size = hermesSrc.newest, hermesSrc.count
+			if ok && v.updated == updated && v.size == size {
+				continue
+			}
+		} else if agySource {
 			updated, size = agySrc.updated, agySrc.steps
 			if ok && v.updated == updated && v.size == size {
 				continue
@@ -493,7 +513,9 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 		var s session
 		var nextOffset int64
 		var err error
-		if agySource {
+		if hermesSource {
+			s, err = hermes.parse(hermesSrc)
+		} else if agySource {
 			s, err = agy.parse(agySrc)
 		} else if opencodeSource {
 			s, err = opencode.parse(src)

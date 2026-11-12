@@ -4,6 +4,8 @@ How coding agents and scripts use kioku. See the [README](../README.md) for inst
 
 ## Command line
 
+Filter with `--harness all|claude|codex|pi|grok|opencode|cursor|hermes|agy` (the MCP search/session tools accept the same names). Hermes Agent reads `KIOKU_HERMES_DB`, then `$HERMES_HOME/state.db`, then `~/.hermes/state.db`, first nonempty wins. Only coding sessions with a cwd and no parent are indexed; profile stores are not read. Resume uses `hermes --resume <id>` in the original directory. See the README's source table for all overrides.
+
 ```sh
 kioku --limit 5 snapshot                  # short refs + snippets, at most 5 hits
 kioku -p kioku --limit 5 snapshot        # exact project basename, case-insensitive; repeat -p for more

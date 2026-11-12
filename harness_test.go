@@ -40,7 +40,7 @@ func TestHarnessRegistryDrivesInterfaces(t *testing.T) {
 	if err := serveMCP(strings.NewReader("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}\n"), &wire); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Count(wire.String(), `"all","claude","codex","pi","grok","opencode","cursor","fixture"`) != 2 {
+	if strings.Count(wire.String(), `"all","claude","codex","pi","grok","opencode","cursor","hermes","fixture"`) != 2 {
 		t.Error("MCP enums do not follow the harness table")
 	}
 	if _, err := mcpCall(json.RawMessage(`{"name":"kioku_search","arguments":{"query":"","harness":"agy"}}`)); err == nil || err.Error() != `invalid harness "agy"` {
@@ -77,6 +77,7 @@ func TestHarnessResumeCommands(t *testing.T) {
 		{"grok", []string{"cd", "/work dir"}, `cd "/work dir"`},
 		{"opencode", []string{"opencode", "--session", "session 'id"}, `opencode --session "session 'id"`},
 		{"cursor", []string{"cursor-agent", "--resume", "session 'id"}, `cursor-agent --resume "session 'id"`},
+		{"hermes", []string{"hermes", "--resume", "session 'id"}, `hermes --resume "session 'id"`},
 		{"agy", []string{"agy", "--conversation", "session 'id"}, `agy --conversation "session 'id"`},
 		{"unknown", []string{"pi", "--session", "/session path.jsonl"}, `pi --session "/session path.jsonl"`},
 	} {

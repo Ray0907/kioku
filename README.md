@@ -2,7 +2,7 @@
 
 <sub><i>kioku</i> (記憶) is Japanese for "memory".</sub>
 
-**Search every Claude Code, Codex, Pi, Grok, OpenCode, Cursor CLI and Antigravity CLI session on macOS or Linux, down to the message, in English, Chinese, Japanese and Korean.**
+**Search every Claude Code, Codex, Pi, Grok, OpenCode, Cursor CLI, Hermes Agent and Antigravity CLI session on macOS or Linux, down to the message, in English, Chinese, Japanese and Korean.**
 
 <p align="center">
   <img src="assets/demo.gif" alt="kioku demo: search for checkout, move through the results, jump between hits in the transcript, then search 結帳 with a highlighter and open the help screen" width="880">
@@ -133,7 +133,7 @@ kioku has a compact text and JSON CLI, an MCP server (`kioku mcp`), a Claude Cod
 | o | open project in editor |
 | y | copy resume command |
 | Enter | resume selected session in its original directory |
-| Tab / Shift-Tab | cycle all / claude / codex / pi / grok / opencode / cursor |
+| Tab / Shift-Tab | cycle all / claude / codex / pi / grok / opencode / cursor / hermes / agy |
 | ? | help (Esc or ? closes it) |
 | Ctrl-C / Esc in results | quit |
 
@@ -173,11 +173,14 @@ Non-interactive message text, snippets and topics replace recognised credentials
 | Grok | `KIOKU_GROK_DIR` | — | `~/.grok/sessions` |
 | OpenCode | `KIOKU_OPENCODE_DB` | `$XDG_DATA_HOME/opencode/opencode.db` | `~/.local/share/opencode/opencode.db` |
 | Cursor CLI | `KIOKU_CURSOR_DIR` | — | `~/.cursor/chats` |
+| Hermes Agent | `KIOKU_HERMES_DB` | `$HERMES_HOME/state.db` | `~/.hermes/state.db` |
 | Antigravity CLI | `KIOKU_AGY_DIR` | — | `~/.gemini/antigravity-cli` |
 
 Empty variables count as unset; a `~/` prefix expands to `$HOME`. kioku overrides point directly at the transcript root; native variables point at the parent config directory. A missing explicit root indexes nothing for that harness, without falling back to the default. Grok sessions are directories containing `chat_history.jsonl` and optional `summary.json`; metadata comes from the summary, with cwd/native ID falling back to the URL-decoded parent/session directory names. Only the history file is tracked for incremental appends. Use `--harness grok` to filter them. OpenCode's override points to the SQLite database, not a directory; both v1 and v2 sessions are read in read-only mode, including live WAL messages. SQLite may update transient `-shm` reader/WAL-index coordination fields; DB/WAL data is never written or checkpointed. If loading fails, cached OpenCode sessions are retained while other harnesses continue syncing. V2 takes precedence for duplicate IDs; subagent sessions and reasoning are skipped. Changed sessions are replaced using session/message timestamps rather than file appends. Use `--harness opencode` to filter them; resume runs `opencode --session <id>` from the session's directory. Set `KIOKU_DEBUG_TIMING=1` for startup/sync/query/snippet/render timings on stderr.
 
 Cursor CLI sessions are `~/.cursor/chats/<md5(cwd)>/<session-id>/{meta.json,store.db}`. Only JSON user/assistant message blobs are read, in rowid order (an approximation: the store has no recorded message order). Binary graph nodes and Cursor IDE `state.vscdb` stores are ignored; sessions without a metadata cwd are skipped. Session start uses metadata `createdAtMs`; messages use `store.db` mtime because they have no timestamps. Changes to either file's mtime/size replace the whole session. Use `--harness cursor`; resume runs `cursor-agent --resume <id>` from the session's directory.
+
+Hermes Agent reads only the home `state.db` (not `profiles/<name>/state.db`) in read-only mode, including live WAL data, without writing or checkpointing DB/WAL data. It indexes sessions with a nonempty cwd and no parent, skipping gateway chats, scheduled jobs, reasoning, inactive messages and compressed summaries. Older stores without cwd index nothing; missing message flags default to active and not a summary. Unix-second timestamps retain their fractions. Message count and newest message ID control whole-session replacement; unchanged sessions are not re-read, and failed loads retain cached sessions while other harnesses sync. A missing explicit path never falls back. Use `--harness hermes`; resume runs `hermes --resume <id>` from the session's directory.
 
 Antigravity CLI uses `conversation_summaries.db` and `conversations/<id>.db` in its data directory. kioku reads these SQLite stores in read-only mode, with live WAL data. It reads user, assistant, and tool steps in step order. It skips child sessions and system steps. The metadata timestamp and step count control each index update; no file timestamp is used. Use `--harness agy` to select these sessions. Resume runs `agy --conversation <id>` from the session directory.
 
