@@ -162,6 +162,7 @@ func run() error {
 	cursor := fs.String("cursor", "", "next page token")
 	showQuery := fs.String("query", "", "locate the hit in show")
 	contextSize := fs.Int("context", 3, "messages before and after")
+	here := fs.Bool("here", false, "scope to the current project directory")
 	allTime := fs.Bool("all-time", false, "include older short-prefix matches")
 	includeSelf := fs.Bool("include-self", false, "include kioku tool calls and results")
 	includeAutomated := fs.Bool("include-automated", false, "include automated review sessions")
@@ -221,7 +222,7 @@ func run() error {
 			continue
 		}
 		switch a {
-		case "--rebuild", "--json", "--no-mouse", "--version", "--sessions", "--all-time", "--include-self", "--include-automated", "--all", "--full", "--outline", "--facets":
+		case "--rebuild", "--json", "--no-mouse", "--version", "--sessions", "--here", "--all-time", "--include-self", "--include-automated", "--all", "--full", "--outline", "--facets":
 			if e := fs.Parse([]string{a}); e != nil {
 				return e
 			}
@@ -263,6 +264,16 @@ func run() error {
 	rng, e := resolveRange(*since, *until, setSince, setUntil, time.Now())
 	if e != nil {
 		return e
+	}
+	var root string
+	if *here {
+		if show || index {
+			return fmt.Errorf("--here applies to search and --sessions")
+		}
+		root, e = scopeRoot(".")
+		if e != nil {
+			return e
+		}
 	}
 	// The TUI has no range, facet, cap, role or model flags; never launch it with filters it would ignore.
 	filtered := rng.active() || *facets || setCap || setRole || setModel
@@ -354,7 +365,7 @@ func run() error {
 			mode = "show"
 			q = *showQuery
 		}
-		key := pageKey{Mode: mode, Query: q, Harness: *harness, Projects: projects, Roles: roles, Model: *modelFlag, Limit: *limit, Context: *contextSize, JSON: *jsonFlag, AllTime: *allTime && shortLatin(q), IncludeSelf: *includeSelf, IncludeAutomated: *includeAutomated, All: *all, Full: *full, Outline: *outline, NoMouse: *noMouse, Rebuild: *rebuild, Since: rng.Since, Until: rng.Until, Facets: *facets, MaxPerSession: *maxPerSession}
+		key := pageKey{Mode: mode, Query: q, Harness: *harness, Projects: projects, Roles: roles, Model: *modelFlag, Root: root, Limit: *limit, Context: *contextSize, JSON: *jsonFlag, AllTime: *allTime && shortLatin(q), IncludeSelf: *includeSelf, IncludeAutomated: *includeAutomated, All: *all, Full: *full, Outline: *outline, NoMouse: *noMouse, Rebuild: *rebuild, Since: rng.Since, Until: rng.Until, Facets: *facets, MaxPerSession: *maxPerSession}
 		if show {
 			key.Ref = words[0]
 		}
@@ -387,7 +398,7 @@ func run() error {
 			return renderHits(page, *jsonFlag, q)
 		}
 	}
-	rows, e := search(context.Background(), db, q, *harness, projects, *limit, *allTime, *includeSelf, *includeAutomated, timeRange{})
+	rows, e := search(context.Background(), db, q, *harness, projects, *limit, *allTime, *includeSelf, *includeAutomated, timeRange{}, root)
 	if e != nil {
 		return e
 	}
@@ -397,6 +408,7 @@ func run() error {
 	}
 	syncEvery = every
 	m := newModel(db, q, *harness, projects, rows, !*noMouse, *limit, *includeSelf)
+	m.root = root
 	m.allTime = *allTime
 	m.includeAutomated = *includeAutomated
 	options := []tea.ProgramOption{tea.WithAltScreen()}

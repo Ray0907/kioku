@@ -94,6 +94,7 @@ kioku                    # recent sessions
 kioku 紅茶                # interactive search
 kioku --json snapshot    # compact JSON page for scripts/agents
 kioku --harness pi 魚池   # restrict to one agent
+kioku --here snapshot    # only sessions in this project directory and its descendants
 kioku --model opus snapshot # case-insensitive model substring; also --sessions and stats
 kioku index              # sync and print counts
 kioku doctor             # read-only source/index/SQLite checks; --json for scripts
@@ -103,6 +104,8 @@ kioku index --rebuild    # replace the index
 When stdout is not a TTY, search prints a compact text page; `--json` prints a structured JSON page. `--version` prints the version; `--no-mouse` disables mouse input. The initial scan runs on first use; the TUI opens with its existing index and refreshes when the scan finishes.
 
 Search: space means AND; `"black tea"` is an exact phrase; `-word` excludes; bare words are prefixes (`resum` finds `resuming`); use `kioku -- --help` to search a flag-like word. CJK terms match inside text, including single characters. Empty or negative-only queries show the latest message of each recent session. The TUI shows up to 300 results by default (the header reads `300 of N messages` when more match); one-shot text and JSON pages show 10 (`--limit N` changes either): selective queries use FTS5 BM25 (newest first on ties); queries whose positive ASCII terms and full FTS match both cover at least 90% use newest matching message time instead. Matching user/assistant messages appear before tool output, with the existing order preserved within each group. Only a single unquoted 1–2 letter Latin prefix is restricted to messages from the seven days before the index's latest timestamp; when older matches are omitted, text pages end with `N older matches omitted (--all-time)` and JSON includes `omitted_older` (a message count, including in `--sessions`). Use `--all-time` to remove this restriction.
+
+`--here` scopes search, `--sessions` and `stats` to the nearest ancestor with a `.git` file or directory, or the working directory when none exists; home and `/` are rejected. It combines with the other filters, and cursors must keep the same scope root. Both the given root and its resolved symlink path match session directories.
 
 Sessions started by an automated review prompt are hidden from search by default; `--include-automated` shows them. Kioku tool calls and their results are hidden from search by default; `--include-self` restores them for that run (including `--sessions`), without reindexing. User/assistant mentions remain searchable.
 
@@ -120,6 +123,7 @@ kioku has a compact text and JSON CLI, an MCP server (`kioku mcp`), a Claude Cod
 | n / N | next / previous hit in transcript |
 | h / H | add a highlight / clear highlights |
 | d / D | set a date range (`since..until`: `7d`, `yesterday`, `2026-10-01..2026-10-07`; same values as `--since`/`--until`) / clear it |
+| p | toggle current-project scope in results; its basename replaces the date-range label while on |
 | v | toggle full transcript |
 | t | unfold / fold tool output (folded by default to one line with a `(+N lines)` count; a selected or matching tool message stays open) |
 | r | sync the index now and re-run the search, to find sessions written since you opened kioku |

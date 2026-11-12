@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -217,6 +220,64 @@ func projectPredicate(filters, names []string) (string, []any) {
 	return `AND s.project IN (` + strings.TrimSuffix(strings.Repeat("?,", len(names)), ",") + `) `, values
 }
 
+// scopeRoot uses the nearest .git entry, including worktree files, without invoking git.
+func scopeRoot(dir string) (string, error) {
+	dir, err := filepath.Abs(dir)
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Stat(dir)
+	if err != nil {
+		return "", err
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("cwd must be a directory")
+	}
+	root := dir
+	for at := dir; ; at = filepath.Dir(at) {
+		if _, err := os.Lstat(filepath.Join(at, ".git")); err == nil {
+			root = at
+			break
+		} else if !os.IsNotExist(err) {
+			return "", err
+		}
+		if filepath.Dir(at) == at {
+			break
+		}
+	}
+	home, _ := os.UserHomeDir()
+	homeReal, _ := filepath.EvalSymlinks(home)
+	for _, path := range []string{dir, root} {
+		real, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			return "", err
+		}
+		if path == "/" || path == home || real == "/" || real == homeReal {
+			return "", fmt.Errorf("--here cannot scope the home directory or /")
+		}
+	}
+	return root, nil
+}
+
+// Compare both the given root and its physical path; no LIKE wildcards or sibling prefixes.
+func scopePredicate(root string) (string, []any) {
+	if root == "" {
+		return "", nil
+	}
+	root = filepath.Clean(root)
+	paths := []string{root}
+	if real, err := filepath.EvalSymlinks(root); err == nil && real != root {
+		paths = append(paths, real)
+	}
+	clauses := make([]string, 0, len(paths))
+	var args []any
+	for _, path := range paths {
+		clauses = append(clauses, `(s.cwd=? OR instr(s.cwd,?)=1)`)
+		args = append(args, path, path+"/")
+	}
+	return `AND (` + strings.Join(clauses, ` OR `) + `) `, args
+}
+
 func selfFilter(includeSelf bool) string {
 	if includeSelf {
 		return ""
@@ -234,7 +295,7 @@ func searchFilter(includeSelf, includeAutomated bool) string {
 
 // Pick by timestamp, then verify exactly against FTS in rowid ranges. Rowids
 // are only seeks into FTS, never a recency limit or a ranking signal.
-func newestMatches(ctx context.Context, db *sql.DB, match, harness string, projects, names []string, tool, includeSelf, includeAutomated bool, rng timeRange, want int, model string) ([]int64, error) {
+func newestMatches(ctx context.Context, db *sql.DB, match, harness string, projects, names []string, tool, includeSelf, includeAutomated bool, rng timeRange, want int, model, root string) ([]int64, error) {
 	limit := 400
 	for {
 		// ponytail: the ts index scans past the other role; add partial role/ts indexes only if tool-heavy corpora make this slow.
@@ -242,7 +303,7 @@ func newestMatches(ctx context.Context, db *sql.DB, match, harness string, proje
 		args := []any{}
 		if len(projects) > 0 {
 			query = `SELECT m.id FROM sessions s CROSS JOIN messages m INDEXED BY messages_session ON m.session_uid=s.uid WHERE `
-		} else if harness != "" && harness != "all" || model != "" {
+		} else if harness != "" && harness != "all" || model != "" || root != "" {
 			query += `CROSS JOIN sessions s ON s.uid=m.session_uid WHERE `
 		} else {
 			query += `WHERE `
@@ -263,6 +324,9 @@ func newestMatches(ctx context.Context, db *sql.DB, match, harness string, proje
 			query += `AND instr(lower(s.model),lower(?))>0 `
 			args = append(args, model)
 		}
+		clause, values = scopePredicate(root)
+		query += clause
+		args = append(args, values...)
 		clause, values = rangePredicate(rng)
 		query += clause + `ORDER BY m.ts DESC,m.id DESC LIMIT ?`
 		args = append(args, values...)
@@ -358,8 +422,11 @@ func newestMatches(ctx context.Context, db *sql.DB, match, harness string, proje
 	}
 }
 
-func search(ctx context.Context, db *sql.DB, q, harness string, projects []string, limit int, allTime, includeSelf, includeAutomated bool, rng timeRange) ([]hit, error) {
+func search(ctx context.Context, db *sql.DB, q, harness string, projects []string, limit int, allTime, includeSelf, includeAutomated bool, rng timeRange, root ...string) ([]hit, error) {
 	k := pageKey{Query: q, Harness: harness, Projects: projects, Limit: limit, AllTime: allTime, IncludeSelf: includeSelf, IncludeAutomated: includeAutomated, Since: rng.Since, Until: rng.Until}
+	if len(root) > 0 {
+		k.Root = root[0]
+	}
 	match := toFTS(q)
 	names, err := matchingProjects(ctx, db, projects)
 	if err != nil {
@@ -377,12 +444,12 @@ func search(ctx context.Context, db *sql.DB, q, harness string, projects []strin
 	}
 	var e error
 	if common {
-		ids, err := newestMatches(ctx, db, match, harness, projects, names, false, includeSelf, includeAutomated, rng, limit, "")
+		ids, err := newestMatches(ctx, db, match, harness, projects, names, false, includeSelf, includeAutomated, rng, limit, "", k.Root)
 		if err != nil {
 			return nil, err
 		}
 		if len(ids) < limit {
-			tools, err := newestMatches(ctx, db, match, harness, projects, names, true, includeSelf, includeAutomated, rng, limit-len(ids), "")
+			tools, err := newestMatches(ctx, db, match, harness, projects, names, true, includeSelf, includeAutomated, rng, limit-len(ids), "", k.Root)
 			if err != nil {
 				return nil, err
 			}

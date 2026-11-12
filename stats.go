@@ -71,6 +71,12 @@ func collectStats(ctx context.Context, db *sql.DB, harness string, projects []st
 		args = append(args, model[0])
 	}
 
+	if len(model) > 1 {
+		clause, values = scopePredicate(model[1])
+		from += clause
+		args = append(args, values...)
+	}
+
 	aggs := `count(DISTINCT m.session_uid),count(*),` + lastActiveExpr
 	var r statsReport
 	if e = db.QueryRowContext(ctx, `SELECT '',`+aggs+` `+from, args...).Scan(&r.Total.Value, &r.Total.Sessions, &r.Total.Messages, &r.Total.LastActive); e != nil {
@@ -125,6 +131,7 @@ func runStats(args []string) error {
 	until := fs.String("until", "", "only messages before the end of this date")
 	harness := fs.String("harness", "all", harnessFlagHelp())
 	model := fs.String("model", "", "filter model by case-insensitive substring")
+	here := fs.Bool("here", false, "scope to the current project directory")
 	var projects projectFlags
 	fs.Var(&projects, "project", "filter project basename (repeatable)")
 	fs.Var(&projects, "p", "filter project basename (repeatable)")
@@ -150,6 +157,13 @@ func runStats(args []string) error {
 	if !validHarness(*harness) {
 		return fmt.Errorf("invalid harness %q", *harness)
 	}
+	var root string
+	if *here {
+		root, e = scopeRoot(".")
+		if e != nil {
+			return e
+		}
+	}
 	db, e := openDB()
 	if e != nil {
 		return e
@@ -158,7 +172,7 @@ func runStats(args []string) error {
 	if _, e = syncIndex(db, false, nil); e != nil {
 		return e
 	}
-	r, e := collectStats(context.Background(), db, *harness, projects, rng, *model)
+	r, e := collectStats(context.Background(), db, *harness, projects, rng, *model, root)
 	if e != nil {
 		return e
 	}

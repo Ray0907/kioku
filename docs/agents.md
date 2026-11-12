@@ -7,6 +7,7 @@ How coding agents and scripts use kioku. See the [README](../README.md) for inst
 ```sh
 kioku --limit 5 snapshot                  # short refs + snippets, at most 5 hits
 kioku -p kioku --limit 5 snapshot        # exact project basename, case-insensitive; repeat -p for more
+kioku --here --limit 5 snapshot          # scope to this project and its descendants
 kioku --limit 5 --cursor TOKEN snapshot   # next page, same query and flags
 kioku --sessions --limit 5 snapshot       # conversation-bearing sessions first; per-role hit counts
 kioku --since 7d snapshot                 # date range, local time: 2026-10-20, 7d, 2w, today, yesterday
@@ -26,6 +27,8 @@ kioku stats --json --harness claude       # {total,harness,project}; rows are {v
 ```
 
 Sessions whose first user message starts with an automated review prompt (`Review this change`, `# Review Guidelines`) are left out of search, `--sessions`, totals and facets; `--include-automated` brings them back and `show` always opens them. `--role` takes `user`, `asst`, `tool` or a comma list and also applies to counts, facets and paging.
+
+`--here` scopes search, `--sessions`, counts, facets and `stats` to the nearest ancestor containing a `.git` entry (otherwise the working directory), excludes home and `/`, combines with other filters, matches both the given root and its resolved symlink path, and binds cursors to that root; MCP `kioku_search` and `kioku_sessions` use the optional absolute-directory string `cwd` for the same scope (omitting it leaves search unscoped).
 
 `--model opus` filters search, `--sessions` and `stats` by a case-insensitive literal substring of the session model (empty models do not match); MCP `kioku_search` and `kioku_sessions` accept the same filter as the optional string `model`.
 
