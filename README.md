@@ -173,6 +173,12 @@ Antigravity CLI uses `conversation_summaries.db` and `conversations/<id>.db` in 
 
 Search tokenization uses [fts5-cjk](https://github.com/Ray0907/fts5-cjk), linked in as a Go module (`go get github.com/Ray0907/fts5-cjk@latest` to update).
 
+## Guides
+
+- [Why I built kioku](https://raytien.me/writing/kioku/) ([繁體中文](https://raytien.me/writing/kioku/zh/))
+- [Search Claude Code session history](https://raytien.me/kioku/claude-code/)
+- [Search Codex session history](https://raytien.me/kioku/codex/)
+
 ## License
 
 MIT. Bundles [fts5-cjk](https://github.com/Ray0907/fts5-cjk) (MIT) and SQLite headers (public domain).
