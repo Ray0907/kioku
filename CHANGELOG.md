@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.11.0 - 2026-11-12
+
+### Added
+- `--model TEXT` (MCP `kioku_search` and `kioku_sessions` `model`) keeps only sessions whose model name contains the text, ignoring case. It applies to search, `--sessions`, counts, facets, paging and `kioku stats`.
+- `--here` limits search, `--sessions`, counts, facets, paging and `kioku stats` to the current project: the nearest parent directory that holds a `.git` entry, or the working directory when there is none. The home directory and `/` are rejected. MCP `kioku_search` and `kioku_sessions` take `cwd` for the same scope. In the TUI, `p` turns the scope on and off and the header shows the project name while it is on.
+- `kioku mcp install [agent...] [--yes] [--dry-run]` registers the kioku MCP server with Claude Code, Codex, Pi and Grok through each agent's own `mcp add` command. With no agent named it uses every known agent on `PATH` and asks once before running.
+- Hermes Agent sessions are indexed (harness `hermes`) from `KIOKU_HERMES_DB`, `$HERMES_HOME/state.db` or `~/.hermes/state.db`, read-only. Only sessions that have a working directory and no parent session are indexed, so gateway chats, scheduled jobs and subagents are left out. Resume runs `hermes --resume <id>`.
+
+### Changed
+- One-shot text and `--json` pages, `--sessions` topics, `kioku show`, `kioku context` and every MCP tool result now replace recognised credentials with `****`: PEM private keys, `Authorization: Bearer` tokens, `sk-` keys, GitHub, Slack and Stripe live tokens, AWS access key ids, Google API keys and JSON Web Tokens. `--no-redact` turns this off for one CLI run; MCP has no way to turn it off. The TUI, the index and `kioku stats` are unchanged.
+
 ## v0.10.4 - 2026-11-12
 
 ### Security
