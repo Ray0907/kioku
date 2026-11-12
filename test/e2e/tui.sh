@@ -33,6 +33,10 @@ for flag in '' --include-self; do
     grep -q '0 messages' <<<"$capture" || self_ok=0
     tmux send-keys -t "htool-$$" Tab; sleep .3
     capture=$(tmux capture-pane -t "htool-$$" -p 2>&1)
+    printf 'hermes --include-self:\n%s\n' "$capture" >> "$SCREENS/tui-self.txt"
+    grep -q '0 messages' <<<"$capture" || self_ok=0
+    tmux send-keys -t "htool-$$" Tab; sleep .3
+    capture=$(tmux capture-pane -t "htool-$$" -p 2>&1)
     printf 'agy --include-self:\n%s\n' "$capture" >> "$SCREENS/tui-self.txt"
     grep -q '0 messages' <<<"$capture" || self_ok=0
     tmux send-keys -t "htool-$$" Tab; sleep .3
@@ -57,9 +61,9 @@ tmux new-session -d -x 120 -y 40 -s "htool-$$" "cd '$ROOT' && HOME='$GROKHOME' K
 tmux set-option -t "htool-$$" remain-on-exit on 2>/dev/null
 sleep 1; tmux capture-pane -t "htool-$$" -p > "$SCREENS/grok-tui.txt" 2>&1
 grep -q 'grok' "$SCREENS/grok-tui.txt" && grep -q '1 messages' "$SCREENS/grok-tui.txt" || grok_ok=0
-tmux send-keys -t "htool-$$" Tab; sleep .3; tmux send-keys -t "htool-$$" Tab; sleep .3; tmux send-keys -t "htool-$$" Tab; sleep .3; tmux send-keys -t "htool-$$" Tab; sleep .3; capture=$(tmux capture-pane -t "htool-$$" -p 2>&1)
+tmux send-keys -t "htool-$$" Tab; sleep .3; tmux send-keys -t "htool-$$" Tab; sleep .3; tmux send-keys -t "htool-$$" Tab; sleep .3; tmux send-keys -t "htool-$$" Tab; sleep .3; tmux send-keys -t "htool-$$" Tab; sleep .3; capture=$(tmux capture-pane -t "htool-$$" -p 2>&1)
 grep -q '1 messages' <<<"$capture" || grok_ok=0
-tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" Enter; sleep .3
+tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" Enter; sleep .3
 tmux capture-pane -t "htool-$$" -p -S -100 >> "$SCREENS/grok-tui.txt" 2>&1
 [[ $(tmux display-message -p -t "htool-$$" '#{pane_dead} #{pane_dead_status}') == '1 0' ]] || grok_ok=0
 grep -Fq "cd \"$GROKHOME/work/grok demo\"" "$SCREENS/grok-tui.txt" || grok_ok=0
@@ -111,9 +115,9 @@ tmux send-keys -t "htool-$$" Tab; sleep .3; capture=$(tmux capture-pane -t "htoo
 grep -q '0 messages' <<<"$capture" || opencode_ok=0
 tmux send-keys -t "htool-$$" Tab; sleep .3; capture=$(tmux capture-pane -t "htool-$$" -p 2>&1)
 grep -q '0 messages' <<<"$capture" || opencode_ok=0
-tmux send-keys -t "htool-$$" Tab; sleep .3; capture=$(tmux capture-pane -t "htool-$$" -p 2>&1)
+tmux send-keys -t "htool-$$" Tab; sleep .3; tmux send-keys -t "htool-$$" Tab; sleep .3; capture=$(tmux capture-pane -t "htool-$$" -p 2>&1)
 grep -q '1 messages' <<<"$capture" || opencode_ok=0
-tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" Escape; sleep .2; tmux send-keys -t "htool-$$" Enter; sleep .6
+tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" Escape; sleep .2; tmux send-keys -t "htool-$$" Enter; sleep .6
 expected="opencode|$OPHOME/work/opencode demo|--session oc-v1"
 grep -Fq "$expected" "$STUBLOG" 2>/dev/null || opencode_ok=0
 [[ $(tmux display-message -p -t "htool-$$" '#{pane_dead} #{pane_dead_status}') == '1 0' ]] || opencode_ok=0
@@ -135,11 +139,11 @@ sleep 1; tmux capture-pane -t "htool-$$" -p > "$SCREENS/cursor-tui.txt" 2>&1
 grep -q 'cursor.*cursor demo' "$SCREENS/cursor-tui.txt" && grep -q '1 messages' "$SCREENS/cursor-tui.txt" || cursor_ok=0
 tmux send-keys -t "htool-$$" Tab; sleep .3; capture=$(tmux capture-pane -t "htool-$$" -p 2>&1)
 grep -q '0 messages' <<<"$capture" || cursor_ok=0
-tmux send-keys -t "htool-$$" Tab; sleep .3; capture=$(tmux capture-pane -t "htool-$$" -p 2>&1)
+tmux send-keys -t "htool-$$" Tab; sleep .3; tmux send-keys -t "htool-$$" Tab; sleep .3; capture=$(tmux capture-pane -t "htool-$$" -p 2>&1)
 grep -q '1 messages' <<<"$capture" || cursor_ok=0
 tmux send-keys -t "htool-$$" Tab; sleep .3; capture=$(tmux capture-pane -t "htool-$$" -p 2>&1)
 grep -q '0 messages' <<<"$capture" || cursor_ok=0
-tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" BTab; sleep .3; capture=$(tmux capture-pane -t "htool-$$" -p 2>&1)
+tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" BTab; sleep .3; tmux send-keys -t "htool-$$" BTab; sleep .3; capture=$(tmux capture-pane -t "htool-$$" -p 2>&1)
 grep -q '0 messages' <<<"$capture" || cursor_ok=0
 tmux send-keys -t "htool-$$" Tab; sleep .3; tmux send-keys -t "htool-$$" Escape; sleep .2; tmux send-keys -t "htool-$$" Enter; sleep .6
 expected="cursor-agent|$CURSORHOME/work/cursor demo|--resume 66666666-6666-4666-8666-666666666666"
