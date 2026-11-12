@@ -48,7 +48,7 @@ func foldStats(rest []statRow) statRow {
 
 // Counts messages inside the range, so a session appears only when it has a message there.
 // Messages from kioku's own tool calls are left out, as in search.
-func collectStats(ctx context.Context, db *sql.DB, harness string, projects []string, rng timeRange) (statsReport, error) {
+func collectStats(ctx context.Context, db *sql.DB, harness string, projects []string, rng timeRange, model ...string) (statsReport, error) {
 	names, e := matchingProjects(ctx, db, projects)
 	if e != nil {
 		return statsReport{}, e
@@ -65,6 +65,11 @@ func collectStats(ctx context.Context, db *sql.DB, harness string, projects []st
 	clause, values = rangePredicate(rng)
 	from += clause
 	args = append(args, values...)
+
+	if len(model) > 0 && model[0] != "" {
+		from += `AND instr(lower(s.model),lower(?))>0 `
+		args = append(args, model[0])
+	}
 
 	aggs := `count(DISTINCT m.session_uid),count(*),` + lastActiveExpr
 	var r statsReport
@@ -119,6 +124,7 @@ func runStats(args []string) error {
 	since := fs.String("since", "", "only messages at or after this date")
 	until := fs.String("until", "", "only messages before the end of this date")
 	harness := fs.String("harness", "all", harnessFlagHelp())
+	model := fs.String("model", "", "filter model by case-insensitive substring")
 	var projects projectFlags
 	fs.Var(&projects, "project", "filter project basename (repeatable)")
 	fs.Var(&projects, "p", "filter project basename (repeatable)")
@@ -128,11 +134,15 @@ func runStats(args []string) error {
 	if fs.NArg() > 0 {
 		return fmt.Errorf("stats takes no arguments, got %q", strings.Join(fs.Args(), " "))
 	}
-	setSince, setUntil := false, false
+	setSince, setUntil, setModel := false, false, false
 	fs.Visit(func(f *flag.Flag) {
 		setSince = setSince || f.Name == "since"
 		setUntil = setUntil || f.Name == "until"
+		setModel = setModel || f.Name == "model"
 	})
+	if setModel && *model == "" {
+		return fmt.Errorf("--model cannot be empty")
+	}
 	rng, e := resolveRange(*since, *until, setSince, setUntil, time.Now())
 	if e != nil {
 		return e
@@ -148,7 +158,7 @@ func runStats(args []string) error {
 	if _, e = syncIndex(db, false, nil); e != nil {
 		return e
 	}
-	r, e := collectStats(context.Background(), db, *harness, projects, rng)
+	r, e := collectStats(context.Background(), db, *harness, projects, rng, *model)
 	if e != nil {
 		return e
 	}

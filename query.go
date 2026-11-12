@@ -234,7 +234,7 @@ func searchFilter(includeSelf, includeAutomated bool) string {
 
 // Pick by timestamp, then verify exactly against FTS in rowid ranges. Rowids
 // are only seeks into FTS, never a recency limit or a ranking signal.
-func newestMatches(ctx context.Context, db *sql.DB, match, harness string, projects, names []string, tool, includeSelf, includeAutomated bool, rng timeRange, want int) ([]int64, error) {
+func newestMatches(ctx context.Context, db *sql.DB, match, harness string, projects, names []string, tool, includeSelf, includeAutomated bool, rng timeRange, want int, model string) ([]int64, error) {
 	limit := 400
 	for {
 		// ponytail: the ts index scans past the other role; add partial role/ts indexes only if tool-heavy corpora make this slow.
@@ -242,7 +242,7 @@ func newestMatches(ctx context.Context, db *sql.DB, match, harness string, proje
 		args := []any{}
 		if len(projects) > 0 {
 			query = `SELECT m.id FROM sessions s CROSS JOIN messages m INDEXED BY messages_session ON m.session_uid=s.uid WHERE `
-		} else if harness != "" && harness != "all" {
+		} else if harness != "" && harness != "all" || model != "" {
 			query += `CROSS JOIN sessions s ON s.uid=m.session_uid WHERE `
 		} else {
 			query += `WHERE `
@@ -259,6 +259,10 @@ func newestMatches(ctx context.Context, db *sql.DB, match, harness string, proje
 		clause, values := projectPredicate(projects, names)
 		query += clause + searchFilter(includeSelf, includeAutomated)
 		args = append(args, values...)
+		if model != "" {
+			query += `AND instr(lower(s.model),lower(?))>0 `
+			args = append(args, model)
+		}
 		clause, values = rangePredicate(rng)
 		query += clause + `ORDER BY m.ts DESC,m.id DESC LIMIT ?`
 		args = append(args, values...)
@@ -373,12 +377,12 @@ func search(ctx context.Context, db *sql.DB, q, harness string, projects []strin
 	}
 	var e error
 	if common {
-		ids, err := newestMatches(ctx, db, match, harness, projects, names, false, includeSelf, includeAutomated, rng, limit)
+		ids, err := newestMatches(ctx, db, match, harness, projects, names, false, includeSelf, includeAutomated, rng, limit, "")
 		if err != nil {
 			return nil, err
 		}
 		if len(ids) < limit {
-			tools, err := newestMatches(ctx, db, match, harness, projects, names, true, includeSelf, includeAutomated, rng, limit-len(ids))
+			tools, err := newestMatches(ctx, db, match, harness, projects, names, true, includeSelf, includeAutomated, rng, limit-len(ids), "")
 			if err != nil {
 				return nil, err
 			}

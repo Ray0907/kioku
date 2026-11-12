@@ -21,6 +21,7 @@ type pageKey struct {
 	Mode, Query, Harness, Ref                  string
 	Projects                                   []string
 	Roles                                      []string `json:",omitempty"`
+	Model                                      string   `json:",omitempty"`
 	Limit, Context                             int
 	JSON, AllTime, All, Full, NoMouse, Rebuild bool
 	Outline                                    bool   `json:",omitempty"`
@@ -260,10 +261,14 @@ func matchSource(ctx context.Context, db *sql.DB, k pageKey, names []string, sco
 		clause, values = rangePredicate(k.rng())
 		from += clause
 		args = append(args, values...)
+		if k.Model != "" {
+			from += `AND instr(lower(s.model),lower(?))>0 `
+			args = append(args, k.Model)
+		}
 		return from, args, 0, nil
 	}
 	from := `FROM messages_fts JOIN messages m ON m.id=messages_fts.rowid `
-	if harness != "" && harness != "all" || len(k.Projects) > 0 || k.Facets {
+	if harness != "" && harness != "all" || len(k.Projects) > 0 || k.Facets || k.Model != "" {
 		from += `JOIN sessions s ON s.uid=m.session_uid `
 	}
 	from += `WHERE messages_fts MATCH ? ` + searchFilter(k.IncludeSelf, k.IncludeAutomated)
@@ -281,6 +286,10 @@ func matchSource(ctx context.Context, db *sql.DB, k pageKey, names []string, sco
 	clause, values = rangePredicate(k.rng())
 	from += clause
 	args = append(args, values...)
+	if k.Model != "" {
+		from += `AND instr(lower(s.model),lower(?))>0 `
+		args = append(args, k.Model)
+	}
 	omitted := 0
 	// An explicit range replaces the implicit short-prefix window.
 	if shortLatin(k.Query) && !k.AllTime && !k.rng().active() {
@@ -412,7 +421,7 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitP
 			if common && k.MaxPerSession == 0 && len(k.Roles) == 0 {
 				ids := []int64{}
 				if offset < conversations {
-					found, err := newestMatches(ctx, db, toFTS(q), harness, k.Projects, names, false, k.IncludeSelf, k.IncludeAutomated, k.rng(), min(conversations, offset+limit))
+					found, err := newestMatches(ctx, db, toFTS(q), harness, k.Projects, names, false, k.IncludeSelf, k.IncludeAutomated, k.rng(), min(conversations, offset+limit), k.Model)
 					if err != nil {
 						return p, err
 					}
@@ -420,7 +429,7 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitP
 				}
 				if offset+limit > conversations && p.Total > conversations {
 					toolOffset := max(0, offset-conversations)
-					found, err := newestMatches(ctx, db, toFTS(q), harness, k.Projects, names, true, k.IncludeSelf, k.IncludeAutomated, k.rng(), min(p.Total-conversations, offset+limit-conversations))
+					found, err := newestMatches(ctx, db, toFTS(q), harness, k.Projects, names, true, k.IncludeSelf, k.IncludeAutomated, k.rng(), min(p.Total-conversations, offset+limit-conversations), k.Model)
 					if err != nil {
 						return p, err
 					}
