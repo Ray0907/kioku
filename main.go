@@ -53,6 +53,7 @@ func usage() string {
   kioku stats [flags]             Sessions, messages and last activity per harness and project
   kioku context                   Where agents left off in this project (for session-start hooks)
   kioku mcp                      Serve read-only MCP tools over stdio
+  kioku mcp install [agent...] [--yes] [--dry-run]  Register with claude, codex, pi, grok
   kioku help                      Show this help
 
 Flags: --json (one JSON page), --limit N (default 10 for pages, 300 for TUI),
@@ -134,6 +135,9 @@ func run() error {
 		return runUpdate(args[1:])
 	}
 	if len(args) > 0 && args[0] == "mcp" {
+		if len(args) > 1 && args[1] == "install" {
+			return runMCPInstall(args[2:])
+		}
 		if len(args) != 1 {
 			return fmt.Errorf("mcp takes no arguments")
 		}

@@ -47,6 +47,14 @@ Install the `kioku` binary first and keep it on the agent's `PATH`. In Claude Co
 
 Restart Claude Code after installation. The plugin loads the existing `skills/kioku` skill and starts the local MCP server. It exposes `kioku_search`, `kioku_sessions`, `kioku_show` and `kioku_context`. The first three return the same compact JSON pages as `--json` in a text content block; `kioku_context` returns the same text as `kioku context`. `kioku_show` takes `limit` (default 10, at most 100) and `outline`; the search tools take `include_automated`, and `kioku_search` takes `role`. All tools are read-only; they update kioku's cache but never change source transcripts or expose `index --rebuild`. Snippets are capped unless you explicitly use `kioku_show` with `full: true` for a message ref.
 
+Register the server using the agents' own CLIs (no config files are edited by kioku):
+
+```sh
+kioku mcp install [agent...] [--yes] [--dry-run]
+```
+
+Known agents are `claude`, `codex`, `pi` and `grok`; without names, kioku selects those on `PATH`, prints the commands and asks once. `--yes` permits non-interactive registration; `--dry-run` only prints commands. Registration uses the absolute installed binary path, preserves matching `PATH` symlinks, and can be repeated to update it; install the binary first rather than using `go run`. Restart the agents after registration. Claude Code users with the plugin installed must not also install `claude`, because the tools would appear twice.
+
 For any stdio MCP client, add this to its MCP configuration (adapt the outer key if your client uses a different format):
 
 ```json

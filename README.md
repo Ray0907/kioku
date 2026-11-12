@@ -113,6 +113,8 @@ Sessions started by an automated review prompt are hidden from search by default
 
 kioku has a compact text and JSON CLI, an MCP server (`kioku mcp`), a Claude Code plugin and a skill. See [docs/agents.md](docs/agents.md) for flags, refs, cursors, MCP tools and setup.
 
+`kioku mcp install [claude|codex|pi|grok ...] [--yes] [--dry-run]` registers the server with selected agents (default: all found on `PATH`).
+
 | Key | Action |
 | --- | --- |
 | typing | search (30 ms debounce); Ctrl-W deletes the previous word |
