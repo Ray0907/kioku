@@ -15,6 +15,7 @@ var harnesses = []harnessSpec{
 	{"grok", "grok", "KIOKU_GROK_DIR", ".grok/sessions", "✕", "", "", []string{"cd", "{cwd}"}},
 	{"opencode", "opencode", "KIOKU_OPENCODE_DB", ".local/share/opencode/opencode.db", "▢", "", "", []string{"opencode", "--session", "{id}"}},
 	{"cursor", "cursor", "KIOKU_CURSOR_DIR", ".cursor/chats", "↖", "", "", []string{"cursor-agent", "--resume", "{id}"}},
+	{"hermes", "hermes", "KIOKU_HERMES_DB", ".hermes/state.db", "h", "", "", []string{"hermes", "--resume", "{id}"}},
 	{"agy", "agy", "KIOKU_AGY_DIR", ".gemini/antigravity-cli", "a", "", "", []string{"agy", "--conversation", "{id}"}},
 }
 

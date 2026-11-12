@@ -1,17 +1,19 @@
 ---
 name: kioku
-description: Use when the user refers to earlier work from any coding-agent session (Claude Code, Codex, Pi, Grok, OpenCode, Cursor CLI, Antigravity CLI) — "last time", "we discussed", "where did I", "that session where", 之前、上次、那時候 — or needs a past decision, error, command, or the session to resume.
+description: Use when the user refers to earlier work from any coding-agent session (Claude Code, Codex, Pi, Grok, OpenCode, Cursor CLI, Hermes Agent, Antigravity CLI) — "last time", "we discussed", "where did I", "that session where", 之前、上次、那時候 — or needs a past decision, error, command, or the session to resume.
 ---
 
 # kioku: search past agent sessions
 
 ## Overview
 
-`kioku` indexes every local Claude Code, Codex, Pi, Grok, OpenCode, Cursor CLI and Antigravity CLI session and searches them at message level, including Chinese, Japanese and Korean. Use it instead of grepping `~/.claude`, `~/.codex`, `~/.pi`, `~/.grok`, `~/.cursor/chats` or the OpenCode and Antigravity CLI SQLite stores: it knows each store's format, ranks hits, and gives the resume command. It is read-only. Grok's `resume:` line is only `cd <cwd>`; no session-resume flag is assumed.
+`kioku` indexes every local Claude Code, Codex, Pi, Grok, OpenCode, Cursor CLI, Hermes Agent and Antigravity CLI session and searches them at message level, including Chinese, Japanese and Korean. Use it instead of grepping `~/.claude`, `~/.codex`, `~/.pi`, `~/.grok`, `~/.cursor/chats` or the OpenCode, Hermes Agent and Antigravity CLI SQLite stores: it knows each store's format, ranks hits, and gives the resume command. It is read-only. Grok's `resume:` line is only `cd <cwd>`; no session-resume flag is assumed.
 
 Output is paged (10 per page by default) so it never floods your context. Go wide to narrow, and only fetch the next page when you need it. MCP `kioku_show` accepts `limit` (1–100; larger values are capped at 100).
 
 Source roots honor `KIOKU_CLAUDE_DIR`, `KIOKU_CODEX_DIR`, `KIOKU_PI_DIR` first, then `$CLAUDE_CONFIG_DIR/projects`, `$CODEX_HOME/sessions`, `$PI_CODING_AGENT_DIR/sessions`, then the default stores under `$HOME`. Grok uses `KIOKU_GROK_DIR` or `~/.grok/sessions` (no native config variable). OpenCode uses `KIOKU_OPENCODE_DB`, then `$XDG_DATA_HOME/opencode/opencode.db`, then `~/.local/share/opencode/opencode.db`. Both SQLite layouts and live WAL messages are read-only; subagent sessions and reasoning are skipped. OpenCode resumes with `opencode --session <id>` from its cwd. Cursor CLI uses `KIOKU_CURSOR_DIR` or `~/.cursor/chats`; only JSON user/assistant blobs are indexed read-only, not binary graph nodes or IDE `state.vscdb` stores. Its rowid order is approximate, messages use DB mtime, and either metadata/DB mtime or size changing replaces the session. Sessions without a cwd are skipped. Cursor resumes with `cursor-agent --resume <id>` from its cwd. Empty variables are unset; `~/` expands to `$HOME`. A missing explicit root yields no sessions for that harness, not a fallback to its default store.
+
+Hermes Agent uses `KIOKU_HERMES_DB`, then `$HERMES_HOME/state.db`, then `~/.hermes/state.db`, first nonempty wins, with no fallback for a missing explicit path. The home store is read-only with live WAL data; profile stores are excluded. Only sessions with a cwd and no parent are indexed; inactive turns, compressed summaries and reasoning are skipped. Use `--harness hermes`; resume runs `hermes --resume <id>` from its cwd.
 
 Antigravity CLI uses `KIOKU_AGY_DIR` or `~/.gemini/antigravity-cli`. kioku reads `conversation_summaries.db` and `conversations/<id>.db` in read-only mode, with live WAL data. It skips child sessions and system steps. Use `--harness agy` to select these sessions. Resume runs `agy --conversation <id>` from the session directory.
 
@@ -59,7 +61,7 @@ Don't read the raw JSONL. `show --full` has everything.
 - Know the model? Add `--model opus` for a case-insensitive literal substring of the session model; empty models do not match. Applies to search, `--sessions` and `stats`; search prints results instead of opening the TUI. MCP: optional string `model` on `kioku_search` and `kioku_sessions`.
 - Remember roughly when? Add `--since` / `--until` (`2026-10-20`, `7d`, `2w`, `today`, `yesterday`; local time; a date as `--until` covers that whole day). Too many hits? Add `--facets` to see counts per project, harness and week, then narrow with `-p`, `--harness` or a date range and search again. One session flooding the list? Add `--max-per-session 2`. MCP: `since`, `until`, `facets` on `kioku_search` and `kioku_sessions`; `max_per_session` on `kioku_search`.
 - Searching the project you are in? Use `--here` on search, `--sessions` or `stats`: it scopes to the nearest `.git` ancestor (otherwise the working directory) and descendants, not other folders with the same basename. Home and `/` are rejected; both the given root and its resolved symlink path match. MCP: optional absolute-directory string `cwd` on `kioku_search` and `kioku_sessions`; omitted means unscoped. Keep the same scope root when paging with a cursor.
-- If you know the project, add `-p <project>` (its directory name). It removes most decoys in one step. `--harness claude|codex|pi|grok|opencode|cursor|agy` narrows by agent. `--json` gives structured output with `next_cursor`.
+- If you know the project, add `-p <project>` (its directory name). It removes most decoys in one step. `--harness claude|codex|pi|grok|opencode|cursor|hermes|agy` narrows by agent. `--json` gives structured output with `next_cursor`.
 
 ## Rules
 
