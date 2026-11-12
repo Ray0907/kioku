@@ -93,6 +93,7 @@ kioku update             # download the latest release and replace this binary
 kioku                    # recent sessions
 kioku 紅茶                # interactive search
 kioku --json snapshot    # compact JSON page for scripts/agents
+kioku --no-redact --json snapshot # opt out of credential redaction for this CLI run
 kioku --harness pi 魚池   # restrict to one agent
 kioku --here snapshot    # only sessions in this project directory and its descendants
 kioku --model opus snapshot # case-insensitive model substring; also --sessions and stats
@@ -159,6 +160,8 @@ show messages include `matches` from the Go FTS predicate so clients can fold
 unrelated turns without interpreting the query.
 
 ## Data and privacy
+
+Non-interactive message text, snippets and topics replace recognised credentials with `****` (CLI `--no-redact`, including `kioku context --no-redact`, opts out for that run; MCP cannot opt out), without changing source transcripts, the index, the TUI or `stats`.
 
 **Local-only and read-only:** transcript stores are never changed or uploaded. The only persistent writes are the search index under `$XDG_CACHE_HOME/kioku/index.db` (or `~/.cache/kioku/index.db`). Override it with `KIOKU_INDEX`. Source roots are selected independently, in this order (first nonempty value wins):
 

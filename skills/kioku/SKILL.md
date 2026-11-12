@@ -65,7 +65,7 @@ Don't read the raw JSONL. `show --full` has everything.
 
 - Run it non-interactively. With a terminal attached, plain `kioku` opens a TUI; if that happens, add `--json`.
 - Report the finding, the session (project, date, agent) and its `resume:` command. Don't run the resume command yourself; that is the user's choice.
-- Transcripts are private. Quote only what answers the question.
+- Transcripts are private. Quote only what answers the question. Non-interactive message text, snippets and topics redact recognised credentials as `****`; CLI `--no-redact` (also `kioku context --no-redact`) disables this for one run, but MCP always redacts.
 - `kioku --help` lists everything. If results look stale, run `kioku index`.
 
 ## Common mistakes

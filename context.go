@@ -33,7 +33,7 @@ func inProject(dir, cwd string) bool {
 // contextText lists where agents left off in the project at dir: up to five sessions from the
 // last 14 days, each with its last question and the first line of its last reply. Every harness
 // gets its latest session in before the rest fill by time. Empty when there are none.
-func contextText(ctx context.Context, db *sql.DB, dir string, now time.Time) (string, error) {
+func contextText(ctx context.Context, db *sql.DB, dir string, now time.Time, noRedact ...bool) (string, error) {
 	dir = filepath.Clean(dir)
 	rows, e := db.QueryContext(ctx, `SELECT uid,harness,cwd,updated FROM sessions WHERE updated>=? ORDER BY updated DESC`,
 		now.AddDate(0, 0, -contextDays).UTC().Format(time.RFC3339Nano))
@@ -59,7 +59,7 @@ func contextText(ctx context.Context, db *sql.DB, dir string, now time.Time) (st
 	// Sessions nobody typed into (another agent's run, an empty start) say nothing about where work stopped.
 	var asked []contextSession
 	for _, s := range found {
-		topic, err := sessionTopic(ctx, db, s.uid)
+		topic, err := sessionTopic(ctx, db, s.uid, noRedact...)
 		if err != nil {
 			return "", err
 		}
@@ -105,6 +105,9 @@ func contextText(ctx context.Context, db *sql.DB, dir string, now time.Time) (st
 		if err != nil && err != sql.ErrNoRows {
 			return "", err
 		}
+		if len(noRedact) == 0 || !noRedact[0] {
+			s.asked, reply = redact(s.asked), redact(reply)
+		}
 		fmt.Fprintf(&b, "- %s · %s ago · %q · `%s`\n  last asked: %q\n", s.harness, ageAt(s.updated, now), s.topic, shortID(s.uid), firstLine(s.asked))
 		if reply = firstLine(reply); reply != "" {
 			fmt.Fprintf(&b, "  last reply: %q\n", reply)
@@ -136,15 +139,16 @@ func firstLine(s string) string {
 // runContext prints contextText for the working directory. It never fails a session start:
 // no index, no history, or any error prints nothing and exits 0.
 func runContext(args []string) error {
-	if len(args) > 0 {
-		return fmt.Errorf("context takes no arguments")
+	noRedact := len(args) == 1 && args[0] == "--no-redact"
+	if len(args) > 0 && !noRedact {
+		return fmt.Errorf("context takes only --no-redact")
 	}
-	text, _ := currentContext()
+	text, _ := currentContext(noRedact)
 	fmt.Fprint(output, text)
 	return nil
 }
 
-func currentContext() (string, error) {
+func currentContext(noRedact ...bool) (string, error) {
 	dir := os.Getenv("CLAUDE_PROJECT_DIR")
 	if dir == "" {
 		var e error
@@ -167,5 +171,5 @@ func currentContext() (string, error) {
 	if _, e = syncIndex(db, false, nil); e != nil {
 		return "", e
 	}
-	return contextText(context.Background(), db, dir, time.Now())
+	return contextText(context.Background(), db, dir, time.Now(), noRedact...)
 }

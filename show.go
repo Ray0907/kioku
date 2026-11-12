@@ -132,7 +132,7 @@ func renderShowMD(p showPage) error {
 	}
 	return nil
 }
-func compactShow(ctx context.Context, db *sql.DB, k pageKey, offset int) (showPage, error) {
+func compactShow(ctx context.Context, db *sql.DB, k pageKey, offset int, noRedact ...bool) (showPage, error) {
 	p := showPage{Messages: []showMessage{}}
 	ref := k.Ref
 	selected := -1
@@ -192,7 +192,7 @@ func compactShow(ctx context.Context, db *sql.DB, k pageKey, offset int) (showPa
 		return p, e
 	}
 	p.Project = displayInline(p.Project)
-	p.Topic, e = sessionTopic(ctx, db, uid)
+	p.Topic, e = sessionTopic(ctx, db, uid, noRedact...)
 	if e != nil {
 		return p, e
 	}
@@ -288,6 +288,9 @@ func compactShow(ctx context.Context, db *sql.DB, k pageKey, offset int) (showPa
 			hm := "??:??"
 			if t, parseErr := time.Parse(time.RFC3339Nano, ts); parseErr == nil {
 				hm = t.Format("15:04")
+			}
+			if len(noRedact) == 0 || !noRedact[0] {
+				text = redact(text)
 			}
 			fullHit := idx == selected && k.Full
 			var visible string

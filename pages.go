@@ -26,7 +26,10 @@ func shortID(uid string) string {
 	sum := sha256.Sum256([]byte(uid))
 	return hex.EncodeToString(sum[:6])
 }
-func compactSnippet(text, q string) string {
+func compactSnippet(text, q string, noRedact ...bool) string {
+	if len(noRedact) == 0 || !noRedact[0] {
+		text = redact(text)
+	}
 	ts := terms(q)
 	s := snippet(text, ts)
 	for _, t := range ts {
@@ -304,7 +307,7 @@ func newestPageHits(ctx context.Context, db *sql.DB, ids []int64) ([]hit, error)
 	return fetchPageHits(ctx, db, `SELECT `+hitColumns+` FROM messages m JOIN sessions s ON s.uid=m.session_uid WHERE m.id IN (`+strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")+`) ORDER BY (m.role='tool'),m.ts DESC,m.id DESC`, args...)
 }
 
-func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitPage, error) {
+func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int, noRedact ...bool) (hitPage, error) {
 	q, harness, limit := k.Query, k.Harness, k.Limit
 	p := hitPage{Hits: []compactHit{}}
 	names, err := matchingProjects(ctx, db, k.Projects)
@@ -411,7 +414,7 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitP
 		}
 	}
 	for _, h := range matches {
-		snippet := compactSnippet(h.Text, q)
+		snippet := compactSnippet(h.Text, q, noRedact...)
 		p.Hits = append(p.Hits, compactHit{shortID(h.UID) + ":" + strconv.Itoa(h.Index), h.Harness, displayInline(h.Project), age(h.TS), h.Role, snippet, highlightRanges(snippet, q)})
 	}
 	p.Shown = len(p.Hits)
@@ -419,7 +422,7 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitP
 	return p, nil
 }
 
-func sessionTopic(ctx context.Context, db *sql.DB, uid string) (string, error) {
+func sessionTopic(ctx context.Context, db *sql.DB, uid string, noRedact ...bool) (string, error) {
 	rows, err := db.QueryContext(ctx, `SELECT text FROM messages WHERE session_uid=? AND role='user' ORDER BY idx`, uid)
 	if err != nil {
 		return "", err
@@ -433,6 +436,9 @@ func sessionTopic(ctx context.Context, db *sql.DB, uid string) (string, error) {
 		if injectedUserText(text) {
 			continue
 		}
+		if len(noRedact) == 0 || !noRedact[0] {
+			text = redact(text)
+		}
 		text = strings.Join(strings.Fields(displayInline(text)), " ")
 		if text != "" {
 			return clip(text, 70), nil
@@ -441,7 +447,7 @@ func sessionTopic(ctx context.Context, db *sql.DB, uid string) (string, error) {
 	return "(no user message)", rows.Err()
 }
 
-func compactSessions(ctx context.Context, db *sql.DB, k pageKey, offset int) (sessionPage, error) {
+func compactSessions(ctx context.Context, db *sql.DB, k pageKey, offset int, noRedact ...bool) (sessionPage, error) {
 	q, limit := k.Query, k.Limit
 	p := sessionPage{Sessions: []compactSession{}}
 	names, err := matchingProjects(ctx, db, k.Projects)
@@ -509,12 +515,13 @@ func compactSessions(ctx context.Context, db *sql.DB, k pageKey, offset int) (se
 			if e = rows.Scan(&id, &harness, &project, &ts, &text, &hits, &idx, &roles.You, &roles.Asst, &roles.Tool); e != nil {
 				break
 			}
-			topic, topicErr := sessionTopic(ctx, db, id)
+			topic, topicErr := sessionTopic(ctx, db, id, noRedact...)
 			if topicErr != nil {
 				e = topicErr
 				break
 			}
-			p.Sessions = append(p.Sessions, compactSession{Ref: shortID(id), Harness: harness, Project: displayInline(project), Age: age(ts), Hits: hits, Roles: roles, BestRef: shortID(id) + ":" + strconv.Itoa(idx), Best: compactSnippet(text, q), Topic: topic, Highlights: highlightRanges(compactSnippet(text, q), q)})
+			best := compactSnippet(text, q, noRedact...)
+			p.Sessions = append(p.Sessions, compactSession{Ref: shortID(id), Harness: harness, Project: displayInline(project), Age: age(ts), Hits: hits, Roles: roles, BestRef: shortID(id) + ":" + strconv.Itoa(idx), Best: best, Topic: topic, Highlights: highlightRanges(best, q)})
 		}
 		if e == nil {
 			e = rows.Err()
