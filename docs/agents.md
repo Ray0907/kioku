@@ -13,6 +13,7 @@ kioku --since 7d snapshot                 # date range, local time: 2026-10-20, 
 kioku --since 2026-10-01 --until 2026-10-07 --facets snapshot  # plus hit counts per project, harness, week
 kioku --max-per-session 2 snapshot        # at most 2 hits from any one session
 kioku --role user,asst snapshot           # only these roles: user, asst, tool
+kioku --model opus snapshot              # session model contains opus, case-insensitive
 kioku --include-automated snapshot        # also search automated review sessions
 kioku show a1b2c3d4e5f6:12 --query "snapshot" --context 3  # center the hit, with surrounding messages
 kioku show a1b2c3d4e5f6:12 --full         # entire marked message; context remains compact
@@ -25,6 +26,8 @@ kioku stats --json --harness claude       # {total,harness,project}; rows are {v
 ```
 
 Sessions whose first user message starts with an automated review prompt (`Review this change`, `# Review Guidelines`) are left out of search, `--sessions`, totals and facets; `--include-automated` brings them back and `show` always opens them. `--role` takes `user`, `asst`, `tool` or a comma list and also applies to counts, facets and paging.
+
+`--model opus` filters search, `--sessions` and `stats` by a case-insensitive literal substring of the session model (empty models do not match); MCP `kioku_search` and `kioku_sessions` accept the same filter as the optional string `model`.
 
 `kioku stats` counts the messages inside the optional `--since`/`--until` range (same values as search) and the sessions that have one, per harness and per project, with the newest message time in local time. Projects past 20 are summed into `(other)`. Kioku tool calls are not counted. To search for the word itself, use `kioku -- stats`.
 

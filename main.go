@@ -63,6 +63,7 @@ Flags: --json (one JSON page), --limit N (default 10 for pages, 300 for TUI),
        --include-self (search: include kioku tool calls and results),
        --include-automated (search: include automated review sessions),
        --role user|asst|tool (search, --sessions: comma-separated roles; prints results),
+       --model TEXT (search, --sessions, stats: case-insensitive model substring),
        --since D, --until D (search, --sessions: date range in local time; D is
          YYYY-MM-DD, RFC3339, Nd, Nw, today or yesterday; a date as --until
          covers that whole day; an explicit range replaces the short-prefix window),
@@ -72,7 +73,7 @@ Flags: --json (one JSON page), --limit N (default 10 for pages, 300 for TUI),
        --outline (show: user messages and each turn's last reply, no tools),
        --format md (show: Markdown to paste into an issue or PR; not with --json),
        --no-mouse, --rebuild (index), --version, --help, -h.
-Stats: kioku stats [--since D] [--until D] [-p NAME] [--harness H] [--json]
+Stats: kioku stats [--since D] [--until D] [-p NAME] [--harness H] [--model TEXT] [--json]
        counts messages in the range and the sessions that have them, per harness
        and per project (20 projects, the rest summed into (other)), with the last
        active time in local time. kioku's own tool calls are not counted.
@@ -165,6 +166,7 @@ func run() error {
 	includeSelf := fs.Bool("include-self", false, "include kioku tool calls and results")
 	includeAutomated := fs.Bool("include-automated", false, "include automated review sessions")
 	role := fs.String("role", "", "filter roles: user, asst or tool (comma-separated)")
+	modelFlag := fs.String("model", "", "filter model by case-insensitive substring")
 	all := fs.Bool("all", false, "show full session")
 	full := fs.Bool("full", false, "show selected message without truncation")
 	outline := fs.Bool("outline", false, "show user messages and each turn's last reply, no tools")
@@ -181,7 +183,7 @@ func run() error {
 	fs.Var(&projects, "p", "filter project basename (repeatable)")
 	ver := fs.Bool("version", false, "print version")
 	// Flags may precede or follow the query.
-	valued := map[string]bool{"--limit": true, "--cursor": true, "--context": true, "--query": true, "--project": true, "-p": true, "--since": true, "--until": true, "--max-per-session": true, "--format": true, "--role": true}
+	valued := map[string]bool{"--limit": true, "--cursor": true, "--context": true, "--query": true, "--project": true, "-p": true, "--since": true, "--until": true, "--max-per-session": true, "--format": true, "--role": true, "--model": true}
 	var words []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -231,7 +233,7 @@ func run() error {
 		fmt.Fprintln(output, version)
 		return nil
 	}
-	setLimit, setSince, setUntil, setCap, setRole := false, false, false, false, false
+	setLimit, setSince, setUntil, setCap, setRole, setModel := false, false, false, false, false, false
 	fs.Visit(func(f *flag.Flag) {
 		switch f.Name {
 		case "limit":
@@ -244,8 +246,13 @@ func run() error {
 			setCap = true
 		case "role":
 			setRole = true
+		case "model":
+			setModel = true
 		}
 	})
+	if setModel && *modelFlag == "" {
+		return fmt.Errorf("--model cannot be empty")
+	}
 	var roles []string
 	if setRole {
 		var e error
@@ -257,8 +264,8 @@ func run() error {
 	if e != nil {
 		return e
 	}
-	// The TUI has no range, facet, cap or role flags; never launch it with filters it would ignore.
-	filtered := rng.active() || *facets || setCap || setRole
+	// The TUI has no range, facet, cap, role or model flags; never launch it with filters it would ignore.
+	filtered := rng.active() || *facets || setCap || setRole || setModel
 	oneShot := show || *sessions || *jsonFlag || *cursor != "" || filtered || !isatty.IsTerminal(os.Stdout.Fd())
 	if !setLimit {
 		if oneShot {
@@ -275,6 +282,9 @@ func run() error {
 	}
 	if (show || index) && len(projects) > 0 {
 		return fmt.Errorf("--project applies to search and --sessions")
+	}
+	if (show || index) && setModel {
+		return fmt.Errorf("--model applies to search and --sessions")
 	}
 	if (show || index) && filtered {
 		return fmt.Errorf("--since, --until, --facets, --max-per-session and --role apply to search and --sessions")
@@ -344,7 +354,7 @@ func run() error {
 			mode = "show"
 			q = *showQuery
 		}
-		key := pageKey{Mode: mode, Query: q, Harness: *harness, Projects: projects, Roles: roles, Limit: *limit, Context: *contextSize, JSON: *jsonFlag, AllTime: *allTime && shortLatin(q), IncludeSelf: *includeSelf, IncludeAutomated: *includeAutomated, All: *all, Full: *full, Outline: *outline, NoMouse: *noMouse, Rebuild: *rebuild, Since: rng.Since, Until: rng.Until, Facets: *facets, MaxPerSession: *maxPerSession}
+		key := pageKey{Mode: mode, Query: q, Harness: *harness, Projects: projects, Roles: roles, Model: *modelFlag, Limit: *limit, Context: *contextSize, JSON: *jsonFlag, AllTime: *allTime && shortLatin(q), IncludeSelf: *includeSelf, IncludeAutomated: *includeAutomated, All: *all, Full: *full, Outline: *outline, NoMouse: *noMouse, Rebuild: *rebuild, Since: rng.Since, Until: rng.Until, Facets: *facets, MaxPerSession: *maxPerSession}
 		if show {
 			key.Ref = words[0]
 		}
