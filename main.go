@@ -73,6 +73,7 @@ Flags: --json (one JSON page), --limit N (default 10 for pages, 300 for TUI),
        --all (show: whole session), --full (show: untruncated hit),
        --outline (show: user messages and each turn's last reply, no tools),
        --format md (show: Markdown to paste into an issue or PR; not with --json),
+       --no-redact (CLI: show recognised credentials instead of ****),
        --no-mouse, --rebuild (index), --version, --help, -h.
 Stats: kioku stats [--since D] [--until D] [-p NAME] [--harness H] [--model TEXT] [--json]
        counts messages in the range and the sessions that have them, per harness
@@ -181,6 +182,7 @@ func run() error {
 	until := fs.String("until", "", "only messages before the end of this date")
 	facets := fs.Bool("facets", false, "add hit counts per project, harness and week")
 	maxPerSession := fs.Int("max-per-session", 0, "keep at most N hits per session")
+	noRedact := fs.Bool("no-redact", false, "do not redact credentials in output")
 	noMouse := fs.Bool("no-mouse", false, "disable mouse")
 	harness := fs.String("harness", "all", harnessFlagHelp())
 	var projects projectFlags
@@ -226,7 +228,7 @@ func run() error {
 			continue
 		}
 		switch a {
-		case "--rebuild", "--json", "--no-mouse", "--version", "--sessions", "--here", "--all-time", "--include-self", "--include-automated", "--all", "--full", "--outline", "--facets":
+		case "--rebuild", "--json", "--no-mouse", "--no-redact", "--version", "--sessions", "--here", "--all-time", "--include-self", "--include-automated", "--all", "--full", "--outline", "--facets":
 			if e := fs.Parse([]string{a}); e != nil {
 				return e
 			}
@@ -380,7 +382,7 @@ func run() error {
 		ctx := context.Background()
 		switch mode {
 		case "show":
-			page, err := compactShow(ctx, db, key, offset)
+			page, err := compactShow(ctx, db, key, offset, *noRedact)
 			if err != nil {
 				return err
 			}
@@ -389,15 +391,18 @@ func run() error {
 			}
 			return renderShow(page, *jsonFlag)
 		case "sessions":
-			page, err := compactSessions(ctx, db, key, offset)
+			page, err := compactSessions(ctx, db, key, offset, *noRedact)
 			if err != nil {
 				return err
 			}
 			return renderSessions(page, *jsonFlag)
 		default:
-			page, err := compactSearch(ctx, db, key, offset)
+			page, err := compactSearch(ctx, db, key, offset, *noRedact)
 			if err != nil {
 				return err
+			}
+			if !*noRedact {
+				q = redact(q)
 			}
 			return renderHits(page, *jsonFlag, q)
 		}

@@ -306,7 +306,7 @@ func mcpHandle(line []byte) *mcpResponse {
 			text = err.Error()
 			result["isError"] = true
 		}
-		result["content"] = []map[string]string{{"type": "text", "text": text}}
+		result["content"] = []map[string]string{{"type": "text", "text": redact(text)}}
 		response.Result = result
 	default:
 		return fail(-32601, "Method not found")
