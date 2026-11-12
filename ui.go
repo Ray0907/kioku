@@ -47,6 +47,8 @@ type model struct {
 	toolsOpen                  bool // t unfolds tool output in the transcript
 	prompt                     promptKind
 	rng                        timeRange
+	root                       string
+	scopeSelection             *hit
 	pens                       []pen
 	status                     string
 	revision                   int
@@ -204,13 +206,16 @@ type syncEnvelope struct {
 	ch <-chan syncMsg
 }
 
-func queryCmd(ctx context.Context, db *sql.DB, q, h string, projects []string, limit, rev int, allTime, includeSelf, includeAutomated bool, rng timeRange) tea.Cmd {
+func queryCmd(ctx context.Context, db *sql.DB, q, h string, projects []string, limit, rev int, allTime, includeSelf, includeAutomated bool, rng timeRange, root ...string) tea.Cmd {
 	return func() tea.Msg {
-		rows, e := search(ctx, db, q, h, projects, limit, allTime, includeSelf, includeAutomated, rng)
+		rows, e := search(ctx, db, q, h, projects, limit, allTime, includeSelf, includeAutomated, rng, root...)
 		if e != nil {
 			return resultMsg{revision: rev, err: e}
 		}
 		k := pageKey{Query: q, Harness: h, Projects: projects, Limit: limit, AllTime: allTime, IncludeSelf: includeSelf, IncludeAutomated: includeAutomated, Since: rng.Since, Until: rng.Until}
+		if len(root) > 0 {
+			k.Root = root[0]
+		}
 		total, sessions, e := searchTotals(ctx, db, k, len(rows))
 		return resultMsg{revision: rev, rows: rows, total: total, totalSessions: sessions, err: e}
 	}
@@ -229,7 +234,7 @@ func (m *model) requestQuery() tea.Cmd {
 	m.loadRevision++
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
-	return queryCmd(ctx, m.db, m.q, m.harness, m.projects, m.limit, m.revision, m.allTime, m.includeSelf, m.includeAutomated, m.rng)
+	return queryCmd(ctx, m.db, m.q, m.harness, m.projects, m.limit, m.revision, m.allTime, m.includeSelf, m.includeAutomated, m.rng, m.root)
 }
 
 // loadKey names what the preview shows: the same session under the same query
@@ -352,7 +357,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				m.rows = x.rows
 				m.total, m.totalSessions = x.total, x.totalSessions
-				m.sel = 0
+				if m.scopeSelection != nil {
+					m.sel = min(m.sel, max(0, len(m.rows)-1))
+					for i, h := range m.rows {
+						if h.ID == m.scopeSelection.ID {
+							m.sel = i
+							break
+						}
+					}
+					m.scopeSelection = nil
+				} else {
+					m.sel = 0
+				}
 				return m, m.requestLoad()
 			}
 		}
@@ -504,6 +520,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.status = ""
 		case "H":
 			m.pens = nil
+		case "p":
+			root := ""
+			if m.root == "" {
+				var err error
+				root, err = scopeRoot(".")
+				if err != nil {
+					m.status = err.Error()
+					return m, nil
+				}
+			}
+			m.root = root
+			m.status = ""
+			if len(m.rows) > 0 {
+				selected := m.rows[m.sel]
+				m.scopeSelection = &selected
+			}
+			m.revision++
+			return m, m.requestQuery()
 		case "d":
 			m.prompt = promptRange
 			m.status = ""

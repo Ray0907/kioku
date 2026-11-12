@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -17,61 +16,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-type pageKey struct {
-	Mode, Query, Harness, Ref                  string
-	Projects                                   []string
-	Roles                                      []string `json:",omitempty"`
-	Model                                      string   `json:",omitempty"`
-	Limit, Context                             int
-	JSON, AllTime, All, Full, NoMouse, Rebuild bool
-	Outline                                    bool   `json:",omitempty"`
-	IncludeSelf                                bool   `json:",omitempty"`
-	IncludeAutomated                           bool   `json:",omitempty"`
-	Since, Until                               string `json:",omitempty"`
-	Facets                                     bool   `json:",omitempty"`
-	MaxPerSession                              int    `json:",omitempty"`
-}
-
-func (k pageKey) rng() timeRange { return timeRange{k.Since, k.Until} }
-
-func (k pageKey) fingerprint() string {
-	b, _ := json.Marshal(k)
-	sum := sha256.Sum256(b)
-	return hex.EncodeToString(sum[:16])
-}
-func (k pageKey) cursor(offset int) string {
-	return base64.RawURLEncoding.EncodeToString([]byte("1:" + k.fingerprint() + ":" + strconv.Itoa(offset)))
-}
-func (k pageKey) offset(token string) (int, error) {
-	if token == "" {
-		return 0, nil
-	}
-	if len(token) > 128 {
-		return 0, fmt.Errorf("invalid cursor")
-	}
-	b, e := base64.RawURLEncoding.DecodeString(token)
-	if e != nil {
-		return 0, fmt.Errorf("invalid cursor")
-	}
-	parts := strings.Split(string(b), ":")
-	if len(parts) != 3 || parts[0] != "1" {
-		return 0, fmt.Errorf("invalid cursor")
-	}
-	if parts[1] != k.fingerprint() {
-		return 0, fmt.Errorf("cursor does not match this query or flags")
-	}
-	n, e := strconv.Atoi(parts[2])
-	if e != nil || n < 1 || n > int(^uint(0)>>1)-k.Limit {
-		return 0, fmt.Errorf("invalid cursor offset")
-	}
-	return n, nil
-}
-func nextCursor(k pageKey, offset, shown, total int) string {
-	if offset+shown < total && shown > 0 {
-		return k.cursor(offset + shown)
-	}
-	return ""
-}
 func writeJSON(v any) error {
 	enc := json.NewEncoder(output)
 	enc.SetEscapeHTML(false)
@@ -258,6 +202,9 @@ func matchSource(ctx context.Context, db *sql.DB, k pageKey, names []string, sco
 		clause, values := projectPredicate(k.Projects, names)
 		from += clause
 		args = append(args, values...)
+		clause, values = scopePredicate(k.Root)
+		from += clause
+		args = append(args, values...)
 		clause, values = rangePredicate(k.rng())
 		from += clause
 		args = append(args, values...)
@@ -268,7 +215,7 @@ func matchSource(ctx context.Context, db *sql.DB, k pageKey, names []string, sco
 		return from, args, 0, nil
 	}
 	from := `FROM messages_fts JOIN messages m ON m.id=messages_fts.rowid `
-	if harness != "" && harness != "all" || len(k.Projects) > 0 || k.Facets || k.Model != "" {
+	if harness != "" && harness != "all" || len(k.Projects) > 0 || k.Facets || k.Model != "" || k.Root != "" {
 		from += `JOIN sessions s ON s.uid=m.session_uid `
 	}
 	from += `WHERE messages_fts MATCH ? ` + searchFilter(k.IncludeSelf, k.IncludeAutomated)
@@ -281,6 +228,9 @@ func matchSource(ctx context.Context, db *sql.DB, k pageKey, names []string, sco
 		args = append(args, harness)
 	}
 	clause, values := projectPredicate(k.Projects, names)
+	from += clause
+	args = append(args, values...)
+	clause, values = scopePredicate(k.Root)
 	from += clause
 	args = append(args, values...)
 	clause, values = rangePredicate(k.rng())
@@ -421,7 +371,7 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitP
 			if common && k.MaxPerSession == 0 && len(k.Roles) == 0 {
 				ids := []int64{}
 				if offset < conversations {
-					found, err := newestMatches(ctx, db, toFTS(q), harness, k.Projects, names, false, k.IncludeSelf, k.IncludeAutomated, k.rng(), min(conversations, offset+limit), k.Model)
+					found, err := newestMatches(ctx, db, toFTS(q), harness, k.Projects, names, false, k.IncludeSelf, k.IncludeAutomated, k.rng(), min(conversations, offset+limit), k.Model, k.Root)
 					if err != nil {
 						return p, err
 					}
@@ -429,7 +379,7 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int) (hitP
 				}
 				if offset+limit > conversations && p.Total > conversations {
 					toolOffset := max(0, offset-conversations)
-					found, err := newestMatches(ctx, db, toFTS(q), harness, k.Projects, names, true, k.IncludeSelf, k.IncludeAutomated, k.rng(), min(p.Total-conversations, offset+limit-conversations), k.Model)
+					found, err := newestMatches(ctx, db, toFTS(q), harness, k.Projects, names, true, k.IncludeSelf, k.IncludeAutomated, k.rng(), min(p.Total-conversations, offset+limit-conversations), k.Model, k.Root)
 					if err != nil {
 						return p, err
 					}

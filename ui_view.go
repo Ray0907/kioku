@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -40,7 +41,9 @@ func (m model) View() string {
 	if m.fresh > 0 && m.progress == "" {
 		count += fmt.Sprintf(" · %d new · r refreshes", m.fresh)
 	}
-	if m.rng.active() {
+	if m.root != "" {
+		count = displayInline(filepath.Base(m.root)) + " · " + count
+	} else if m.rng.active() {
 		count = m.rng.label() + " · " + count
 	}
 	strong := lipgloss.NewStyle().Bold(true)
@@ -186,6 +189,7 @@ func (m *model) pageLines(w int) []string {
 			"  pgup / pgdown scroll transcript by a page · wheel scrolls lines",
 			"  h / H   add highlighter / clear highlights",
 			"  d / D   set date range / clear date range",
+			"  p        toggle current project scope",
 			"  v       full transcript (hide hit list)    t show / fold tool output",
 			"  o       open directory in editor",
 			"  y       copy resume command",

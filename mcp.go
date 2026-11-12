@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"path/filepath"
 	"time"
 )
 
@@ -43,8 +44,10 @@ func mcpTools() []mcpTool {
 			"max_per_session":   {"type": "integer", "minimum": 1, "description": "Keep at most N hits per session so one session cannot fill the page."},
 			"role":              {"type": "string", "minLength": 1, "description": "Filter roles: user, asst or tool; comma-separated lists allowed."},
 			"model":             {"type": "string", "minLength": 1, "description": "Session model contains this literal substring, case-insensitive."},
+			"cwd":               {"type": "string", "minLength": 1, "description": "Absolute working directory; scope to its nearest .git ancestor, or itself."},
 		}}},
 		{Name: "kioku_sessions", Description: "Find local agent sessions ranked by best hit, with compact snippets and topics. Empty query browses recent sessions.", InputSchema: mcpSchema{Required: []string{"query"}, Properties: map[string]map[string]any{
+			"cwd":               {"type": "string", "minLength": 1, "description": "Absolute working directory; scope to its nearest .git ancestor, or itself."},
 			"query":             {"type": "string"},
 			"model":             {"type": "string", "minLength": 1, "description": "Session model contains this literal substring, case-insensitive."},
 			"include_automated": {"type": "boolean", "default": false},
@@ -81,6 +84,7 @@ type mcpArguments struct {
 	Project          string `json:"project"`
 	Role             string `json:"role"`
 	Model            string `json:"model"`
+	CWD              string `json:"cwd"`
 	Limit            int    `json:"limit"`
 	Cursor           string `json:"cursor"`
 	Ref              string `json:"ref"`
@@ -160,6 +164,16 @@ func mcpCall(params json.RawMessage) (string, error) {
 	if _, ok := fields["model"]; ok && a.Model == "" {
 		return "", fmt.Errorf("model cannot be empty")
 	}
+	var root string
+	if _, ok := fields["cwd"]; ok {
+		if !filepath.IsAbs(a.CWD) {
+			return "", fmt.Errorf("cwd must be an absolute directory")
+		}
+		root, err = scopeRoot(a.CWD)
+		if err != nil {
+			return "", err
+		}
+	}
 	var roles []string
 	if _, ok := fields["role"]; ok {
 		if roles, err = parseRoles(a.Role); err != nil {
@@ -183,7 +197,7 @@ func mcpCall(params json.RawMessage) (string, error) {
 			return "", fmt.Errorf("ref cannot be empty")
 		}
 	}
-	key := pageKey{Mode: mode, Query: a.Query, Harness: a.Harness, Projects: projects, Roles: roles, Model: a.Model, Limit: a.Limit, Context: a.Context, JSON: true, Ref: a.Ref, AllTime: a.AllTime && shortLatin(a.Query), IncludeSelf: a.IncludeSelf, IncludeAutomated: a.IncludeAutomated, Full: a.Full, All: a.All, Outline: a.Outline, Since: rng.Since, Until: rng.Until, Facets: a.Facets, MaxPerSession: a.MaxPerSession}
+	key := pageKey{Mode: mode, Query: a.Query, Harness: a.Harness, Projects: projects, Roles: roles, Model: a.Model, Root: root, Limit: a.Limit, Context: a.Context, JSON: true, Ref: a.Ref, AllTime: a.AllTime && shortLatin(a.Query), IncludeSelf: a.IncludeSelf, IncludeAutomated: a.IncludeAutomated, Full: a.Full, All: a.All, Outline: a.Outline, Since: rng.Since, Until: rng.Until, Facets: a.Facets, MaxPerSession: a.MaxPerSession}
 	offset, err := key.offset(a.Cursor)
 	if err != nil {
 		return "", err
