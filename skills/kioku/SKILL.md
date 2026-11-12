@@ -15,6 +15,10 @@ Source roots honor `KIOKU_CLAUDE_DIR`, `KIOKU_CODEX_DIR`, `KIOKU_PI_DIR` first, 
 
 Antigravity CLI uses `KIOKU_AGY_DIR` or `~/.gemini/antigravity-cli`. kioku reads `conversation_summaries.db` and `conversations/<id>.db` in read-only mode, with live WAL data. It skips child sessions and system steps. Use `--harness agy` to select these sessions. Resume runs `agy --conversation <id>` from the session directory.
 
+## MCP setup
+
+With the installed binary on `PATH`, run `kioku mcp install [agent...] [--yes] [--dry-run]` to register it using the `claude`, `codex`, `pi` or `grok` CLI. Without names it selects installed agents and asks once; use `--dry-run` to preview, and `--yes` only with the user's consent. Restart the agents afterward. Claude Code users with the kioku plugin must not also install `claude`, or tools appear twice. `kioku mcp` alone remains the stdio server.
+
 ## Workflow
 
 0. **Already know the project?** From memory, the cwd, or the user: start with `-p <project>` on every command below. It is the fastest filter.
