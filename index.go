@@ -10,7 +10,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	_ "github.com/Ray0907/fts5-cjk"
@@ -331,34 +330,8 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 	hermesFailed := hermesErr != nil
 	agy, agyErr := loadAgy()
 	agyFailed := agyErr != nil
-	for _, source := range []struct {
-		harness string
-		err     error
-	}{{"opencode", err}, {"agy", agyErr}, {"hermes", hermesErr}} {
-		if source.err == nil {
-			continue
-		}
-		stats.Warnings = append(stats.Warnings, fmt.Sprintf("%s: %v", source.harness, source.err))
-		stats.Skipped++
-		// A failed scan is not evidence that previously indexed sessions disappeared.
-		rows, e := db.Query("SELECT path FROM sessions WHERE harness=?", source.harness)
-		if e != nil {
-			return stats, e
-		}
-		for rows.Next() {
-			var p string
-			if e = rows.Scan(&p); e != nil {
-				break
-			}
-			files[p] = source.harness
-		}
-		if e == nil {
-			e = rows.Err()
-		}
-		rows.Close()
-		if e != nil {
-			return stats, e
-		}
+	if e = keepFailedSources(db, files, &stats, []sourceScan{{"opencode", err}, {"agy", agyErr}, {"hermes", hermesErr}}); e != nil {
+		return stats, e
 	}
 	opSessions := map[string]opencodeSession{}
 	if opencode != nil {
@@ -418,10 +391,6 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 			}
 		}
 	}
-	type sourceState struct {
-		mtime, size, offset, inode, updated int64
-		toolCalls                           string
-	}
 	old := map[string]sourceState{}
 	rows, e := tx.Query("SELECT path,mtime,size,offset,inode,updated,tool_calls FROM sources")
 	if e != nil {
@@ -453,77 +422,29 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 		hermesSrc, hermesSource := hermesSessions[p]
 		dbSource := opencodeSource || agySource || hermesSource
 		cursorSource := files[p] == "cursor"
-		mtime, size, inode, updated := int64(0), int64(0), int64(0), int64(0)
 		v, ok := old[p]
 		ok = ok && !rebuild // Failed DB scans retain rows; other sources still rebuild.
+		var read sourceRead
 		if hermesSource {
-			updated, size = hermesSrc.newest, hermesSrc.count
-			if ok && v.updated == updated && v.size == size {
-				continue
-			}
+			read = readHermesSource(hermes, hermesSrc, v, ok)
 		} else if agySource {
-			updated, size = agySrc.updated, agySrc.steps
-			if ok && v.updated == updated && v.size == size {
-				continue
-			}
+			read = readAgySource(agy, agySrc, v, ok)
 		} else if opencodeSource {
-			updated = src.updated
-			inode = 1 // DB sources use this slot for layout, so v1 -> v2 also reparses.
-			if src.v2 {
-				inode = 2
-			}
-			if ok && v.updated == updated && v.inode == inode {
-				continue
-			}
+			read = readOpencodeSource(opencode, src, v, ok)
+		} else if cursorSource {
+			read = readCursorSource(p, infos[p], infos[filepath.Join(filepath.Dir(p), "store.db")], v, ok)
 		} else {
-			info := infos[p]
-			if info == nil {
-				continue
-			}
-			mtime, size = info.ModTime().UnixNano(), info.Size()
-			inode = int64(info.Sys().(*syscall.Stat_t).Ino)
-			if cursorSource {
-				store := infos[filepath.Join(filepath.Dir(p), "store.db")]
-				if store == nil {
-					continue
-				}
-				// Cursor tracks both files: mtime/size are metadata; updated/inode are DB mtime/size.
-				updated, inode = store.ModTime().UnixNano(), store.Size()
-			}
-			if ok && v.mtime == mtime && v.size == size && (!cursorSource || v.updated == updated && v.inode == inode) {
-				continue
-			}
-		}
-		appendOnly := !dbSource && !cursorSource && ok && v.inode == inode && v.offset > 0 && size > v.size && v.offset <= v.size
-		var base session
-		startIdx := 0
-		offset := int64(0)
-		if appendOnly {
-			if e = json.Unmarshal([]byte(v.toolCalls), &base.ToolCalls); e != nil {
+			read, e = readFileSource(tx, p, files[p], infos[p], v, ok)
+			if e != nil {
 				return stats, e
 			}
-			offset = v.offset
-			e = tx.QueryRow("SELECT uid,harness,native_id,path,cwd,project,model,started,updated,msg_count FROM sessions WHERE path=?", p).Scan(&base.UID, &base.Harness, &base.NativeID, &base.Path, &base.CWD, &base.Project, &base.Model, &base.Started, &base.Updated, &startIdx)
-			if e != nil {
-				appendOnly = false
-				offset = 0
-				startIdx = 0
-			}
 		}
-		var s session
-		var nextOffset int64
-		var err error
-		if hermesSource {
-			s, err = hermes.parse(hermesSrc)
-		} else if agySource {
-			s, err = agy.parse(agySrc)
-		} else if opencodeSource {
-			s, err = opencode.parse(src)
-		} else if cursorSource {
-			s, err = parseCursor(p, updated)
-		} else {
-			s, nextOffset, err = parseFile(p, files[p], offset, size, base, startIdx)
+		if read.skip {
+			continue
 		}
+		mtime, size, inode, updated := read.state.mtime, read.state.size, read.state.inode, read.state.updated
+		appendOnly := read.appendOnly
+		s, nextOffset, err := read.session, read.state.offset, read.err
 		if err != nil {
 			// No messages means a successful read with nothing to index.
 			// Agy has no old schema rows; a missing conversation must not block migration.
