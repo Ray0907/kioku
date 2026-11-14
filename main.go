@@ -159,84 +159,17 @@ func run() error {
 	if index || show {
 		args = args[1:]
 	}
-	fs := flag.NewFlagSet("kioku", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	rebuild := fs.Bool("rebuild", false, "rebuild index")
-	jsonFlag := fs.Bool("json", false, "print JSON lines")
-	limit := fs.Int("limit", 0, "maximum results")
-	cursor := fs.String("cursor", "", "next page token")
-	showQuery := fs.String("query", "", "locate the hit in show")
-	contextSize := fs.Int("context", 3, "messages before and after")
-	here := fs.Bool("here", false, "scope to the current project directory")
-	allTime := fs.Bool("all-time", false, "include older short-prefix matches")
-	includeSelf := fs.Bool("include-self", false, "include kioku tool calls and results")
-	includeAutomated := fs.Bool("include-automated", false, "include automated review sessions")
-	role := fs.String("role", "", "filter roles: user, asst or tool (comma-separated)")
-	modelFlag := fs.String("model", "", "filter model by case-insensitive substring")
-	all := fs.Bool("all", false, "show full session")
-	full := fs.Bool("full", false, "show selected message without truncation")
-	outline := fs.Bool("outline", false, "show user messages and each turn's last reply, no tools")
-	sessions := fs.Bool("sessions", false, "group by session")
-	format := fs.String("format", "text", "show output: text or md")
-	since := fs.String("since", "", "only messages at or after this date")
-	until := fs.String("until", "", "only messages before the end of this date")
-	facets := fs.Bool("facets", false, "add hit counts per project, harness and week")
-	maxPerSession := fs.Int("max-per-session", 0, "keep at most N hits per session")
-	noRedact := fs.Bool("no-redact", false, "do not redact credentials in output")
-	noMouse := fs.Bool("no-mouse", false, "disable mouse")
-	harness := fs.String("harness", "all", harnessFlagHelp())
-	var projects projectFlags
-	fs.Var(&projects, "project", "filter project basename (repeatable)")
-	fs.Var(&projects, "p", "filter project basename (repeatable)")
-	ver := fs.Bool("version", false, "print version")
-	// Flags may precede or follow the query.
-	valued := map[string]bool{"--limit": true, "--cursor": true, "--context": true, "--query": true, "--project": true, "-p": true, "--since": true, "--until": true, "--max-per-session": true, "--format": true, "--role": true, "--model": true}
-	var words []string
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		if a == "--" {
-			words = append(words, args[i+1:]...)
-			break
-		}
-		if a == "--help" || a == "-h" {
-			fmt.Fprint(output, usage())
-			return nil
-		}
-		if valued[a] {
-			if i+1 == len(args) {
-				return fmt.Errorf("%s requires a value", a)
-			}
-			if e := fs.Parse(args[i : i+2]); e != nil {
-				return e
-			}
-			i++
-			continue
-		}
-		if name, _, ok := strings.Cut(a, "="); ok && valued[name] {
-			if e := fs.Parse([]string{a}); e != nil {
-				return e
-			}
-			continue
-		}
-		if a == "--harness" && i+1 < len(args) {
-			*harness = args[i+1]
-			i++
-			continue
-		}
-		if strings.HasPrefix(a, "--harness=") {
-			*harness = strings.TrimPrefix(a, "--harness=")
-			continue
-		}
-		switch a {
-		case "--rebuild", "--json", "--no-mouse", "--no-redact", "--version", "--sessions", "--here", "--all-time", "--include-self", "--include-automated", "--all", "--full", "--outline", "--facets":
-			if e := fs.Parse([]string{a}); e != nil {
-				return e
-			}
-		default:
-			words = append(words, a)
-		}
+	opts := newFlagSet()
+	fs := opts.fs
+	words, help, e := parseArgs(fs, args)
+	if e != nil {
+		return e
 	}
-	if *ver {
+	if help {
+		fmt.Fprint(output, usage())
+		return nil
+	}
+	if *opts.ver {
 		fmt.Fprintln(output, version)
 		return nil
 	}
@@ -257,22 +190,22 @@ func run() error {
 			setModel = true
 		}
 	})
-	if setModel && *modelFlag == "" {
+	if setModel && *opts.modelFlag == "" {
 		return fmt.Errorf("--model cannot be empty")
 	}
 	var roles []string
 	if setRole {
 		var e error
-		if roles, e = parseRoles(*role); e != nil {
+		if roles, e = parseRoles(*opts.role); e != nil {
 			return e
 		}
 	}
-	rng, e := resolveRange(*since, *until, setSince, setUntil, time.Now())
+	rng, e := resolveRange(*opts.since, *opts.until, setSince, setUntil, time.Now())
 	if e != nil {
 		return e
 	}
 	var root string
-	if *here {
+	if *opts.here {
 		if show || index {
 			return fmt.Errorf("--here applies to search and --sessions")
 		}
@@ -282,22 +215,22 @@ func run() error {
 		}
 	}
 	// The TUI has no range, facet, cap, role or model flags; never launch it with filters it would ignore.
-	filtered := rng.active() || *facets || setCap || setRole || setModel
-	oneShot := show || *sessions || *jsonFlag || *cursor != "" || filtered || !isatty.IsTerminal(os.Stdout.Fd())
+	filtered := rng.active() || *opts.facets || setCap || setRole || setModel
+	oneShot := show || *opts.sessions || *opts.jsonFlag || *opts.cursor != "" || filtered || !isatty.IsTerminal(os.Stdout.Fd())
 	if !setLimit {
 		if oneShot {
-			*limit = 10
+			*opts.limit = 10
 		} else {
-			*limit = 300
+			*opts.limit = 300
 		}
 	}
-	if *limit < 1 {
+	if *opts.limit < 1 {
 		return fmt.Errorf("--limit must be a positive integer")
 	}
-	if *contextSize < 0 {
+	if *opts.contextSize < 0 {
 		return fmt.Errorf("--context must be nonnegative")
 	}
-	if (show || index) && len(projects) > 0 {
+	if (show || index) && len(opts.projects) > 0 {
 		return fmt.Errorf("--project applies to search and --sessions")
 	}
 	if (show || index) && setModel {
@@ -306,32 +239,32 @@ func run() error {
 	if (show || index) && filtered {
 		return fmt.Errorf("--since, --until, --facets, --max-per-session and --role apply to search and --sessions")
 	}
-	if setCap && (*maxPerSession < 1 || *sessions) {
+	if setCap && (*opts.maxPerSession < 1 || *opts.sessions) {
 		return fmt.Errorf("--max-per-session must be a positive integer and applies to search, not --sessions")
 	}
-	if show && (*sessions || len(words) != 1) {
+	if show && (*opts.sessions || len(words) != 1) {
 		return fmt.Errorf("show requires one reference (and cannot use --sessions)")
 	}
-	if *format != "text" && *format != "md" {
+	if *opts.format != "text" && *opts.format != "md" {
 		return fmt.Errorf("--format must be text or md")
 	}
-	if *format == "md" && (!show || *jsonFlag) {
+	if *opts.format == "md" && (!show || *opts.jsonFlag) {
 		return fmt.Errorf("--format md applies to show and cannot be combined with --json")
 	}
-	if !show && *all {
+	if !show && *opts.all {
 		return fmt.Errorf("--all requires show")
 	}
-	if !show && *full {
+	if !show && *opts.full {
 		return fmt.Errorf("--full requires show")
 	}
-	if !show && *outline {
+	if !show && *opts.outline {
 		return fmt.Errorf("--outline requires show")
 	}
-	if !show && *showQuery != "" {
+	if !show && *opts.showQuery != "" {
 		return fmt.Errorf("--query requires show")
 	}
-	if !validHarness(*harness) {
-		return fmt.Errorf("invalid harness %q", *harness)
+	if !validHarness(*opts.harness) {
+		return fmt.Errorf("invalid harness %q", *opts.harness)
 	}
 	db, e := openDB()
 	if e != nil {
@@ -341,7 +274,7 @@ func run() error {
 	timing("startup", started)
 	if index {
 		syncStart := time.Now()
-		s, e := syncIndex(db, *rebuild, nil)
+		s, e := syncIndex(db, *opts.rebuild, nil)
 		for _, warning := range s.Warnings {
 			fmt.Fprintln(os.Stderr, "kioku: "+warning)
 		}
@@ -364,50 +297,50 @@ func run() error {
 			return e
 		}
 		mode := "hits"
-		if *sessions {
+		if *opts.sessions {
 			mode = "sessions"
 		}
 		if show {
 			mode = "show"
-			q = *showQuery
+			q = *opts.showQuery
 		}
-		key := pageKey{Mode: mode, Query: q, Harness: *harness, Projects: projects, Roles: roles, Model: *modelFlag, Root: root, Limit: *limit, Context: *contextSize, JSON: *jsonFlag, AllTime: *allTime && shortLatin(q), IncludeSelf: *includeSelf, IncludeAutomated: *includeAutomated, All: *all, Full: *full, Outline: *outline, NoMouse: *noMouse, Rebuild: *rebuild, Since: rng.Since, Until: rng.Until, Facets: *facets, MaxPerSession: *maxPerSession}
+		key := pageKey{Mode: mode, Query: q, Harness: *opts.harness, Projects: opts.projects, Roles: roles, Model: *opts.modelFlag, Root: root, Limit: *opts.limit, Context: *opts.contextSize, JSON: *opts.jsonFlag, AllTime: *opts.allTime && shortLatin(q), IncludeSelf: *opts.includeSelf, IncludeAutomated: *opts.includeAutomated, All: *opts.all, Full: *opts.full, Outline: *opts.outline, NoMouse: *opts.noMouse, Rebuild: *opts.rebuild, Since: rng.Since, Until: rng.Until, Facets: *opts.facets, MaxPerSession: *opts.maxPerSession}
 		if show {
 			key.Ref = words[0]
 		}
-		offset, err := key.offset(*cursor)
+		offset, err := key.offset(*opts.cursor)
 		if err != nil {
 			return err
 		}
 		ctx := context.Background()
 		switch mode {
 		case "show":
-			page, err := compactShow(ctx, db, key, offset, *noRedact)
+			page, err := compactShow(ctx, db, key, offset, *opts.noRedact)
 			if err != nil {
 				return err
 			}
-			if *format == "md" {
+			if *opts.format == "md" {
 				return renderShowMD(page)
 			}
-			return renderShow(page, *jsonFlag)
+			return renderShow(page, *opts.jsonFlag)
 		case "sessions":
-			page, err := compactSessions(ctx, db, key, offset, *noRedact)
+			page, err := compactSessions(ctx, db, key, offset, *opts.noRedact)
 			if err != nil {
 				return err
 			}
-			return renderSessions(page, *jsonFlag)
+			return renderSessions(page, *opts.jsonFlag)
 		default:
-			page, err := compactSearch(ctx, db, key, offset, *noRedact)
+			page, err := compactSearch(ctx, db, key, offset, *opts.noRedact)
 			if err != nil {
 				return err
 			}
-			if !*noRedact {
+			if !*opts.noRedact {
 				q = redact(q)
 			}
-			return renderHits(page, *jsonFlag, q)
+			return renderHits(page, *opts.jsonFlag, q)
 		}
 	}
-	rows, e := search(context.Background(), db, q, *harness, projects, *limit, *allTime, *includeSelf, *includeAutomated, timeRange{}, root)
+	rows, e := search(context.Background(), db, q, *opts.harness, opts.projects, *opts.limit, *opts.allTime, *opts.includeSelf, *opts.includeAutomated, timeRange{}, root)
 	if e != nil {
 		return e
 	}
@@ -416,12 +349,12 @@ func run() error {
 		return e
 	}
 	syncEvery = every
-	m := newModel(db, q, *harness, projects, rows, !*noMouse, *limit, *includeSelf)
+	m := newModel(db, q, *opts.harness, opts.projects, rows, !*opts.noMouse, *opts.limit, *opts.includeSelf)
 	m.root = root
-	m.allTime = *allTime
-	m.includeAutomated = *includeAutomated
+	m.allTime = *opts.allTime
+	m.includeAutomated = *opts.includeAutomated
 	options := []tea.ProgramOption{tea.WithAltScreen()}
-	if !*noMouse {
+	if !*opts.noMouse {
 		options = append(options, tea.WithMouseCellMotion())
 	}
 	final, e := tea.NewProgram(m, options...).Run()
