@@ -197,7 +197,7 @@ func matchSource(ctx context.Context, db *sql.DB, k pageKey, names []string, sco
 	harness := k.Harness
 	if toFTS(k.Query) == "" {
 		roleClause, args := rolePredicate(k.Roles)
-		from := `FROM sessions s JOIN messages m ON s.uid=m.session_uid WHERE m.idx=(SELECT max(idx) FROM messages m WHERE session_uid=s.uid ` + searchFilter(k.IncludeSelf, k.IncludeAutomated) + roleClause + `) `
+		from := `FROM sessions s CROSS JOIN messages m WHERE m.session_uid=s.uid AND m.idx=(SELECT max(idx) FROM messages m WHERE session_uid=s.uid ` + searchFilter(k.IncludeSelf, k.IncludeAutomated) + roleClause + `) `
 		if harness != "" && harness != "all" {
 			from += `AND s.harness=? `
 			args = append(args, harness)
