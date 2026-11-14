@@ -360,7 +360,7 @@ func TestHereCommonWordPath(t *testing.T) {
 
 func TestHereTUITogglePreservesState(t *testing.T) {
 	db, root := hereFixture(t)
-	rows, err := search(context.Background(), db, "scopeprobe", "all", nil, 100, false, false, false, lastTwentyDays)
+	rows, err := search(context.Background(), db, pageKey{Query: "scopeprobe", Harness: "all", Limit: 100, Since: lastTwentyDays.Since, Until: lastTwentyDays.Until})
 	if err != nil {
 		t.Fatal(err)
 	}

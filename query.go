@@ -295,39 +295,39 @@ func searchFilter(includeSelf, includeAutomated bool) string {
 
 // Pick by timestamp, then verify exactly against FTS in rowid ranges. Rowids
 // are only seeks into FTS, never a recency limit or a ranking signal.
-func newestMatches(ctx context.Context, db *sql.DB, match, harness string, projects, names []string, tool, includeSelf, includeAutomated bool, rng timeRange, want int, model, root string) ([]int64, error) {
+func newestMatches(ctx context.Context, db *sql.DB, k pageKey, match string, names []string, tool bool, want int) ([]int64, error) {
 	limit := 400
 	for {
 		// ponytail: the ts index scans past the other role; add partial role/ts indexes only if tool-heavy corpora make this slow.
 		query := `SELECT m.id FROM messages m INDEXED BY messages_ts `
 		args := []any{}
-		if len(projects) > 0 {
+		if len(k.Projects) > 0 {
 			query = `SELECT m.id FROM sessions s CROSS JOIN messages m INDEXED BY messages_session ON m.session_uid=s.uid WHERE `
-		} else if harness != "" && harness != "all" || model != "" || root != "" {
+		} else if k.Harness != "" && k.Harness != "all" || k.Model != "" || k.Root != "" {
 			query += `CROSS JOIN sessions s ON s.uid=m.session_uid WHERE `
 		} else {
 			query += `WHERE `
 		}
-		if harness != "" && harness != "all" {
+		if k.Harness != "" && k.Harness != "all" {
 			query += `s.harness=? AND `
-			args = append(args, harness)
+			args = append(args, k.Harness)
 		}
 		if tool {
 			query += `m.role='tool' `
 		} else {
 			query += `m.role!='tool' `
 		}
-		clause, values := projectPredicate(projects, names)
-		query += clause + searchFilter(includeSelf, includeAutomated)
+		clause, values := projectPredicate(k.Projects, names)
+		query += clause + searchFilter(k.IncludeSelf, k.IncludeAutomated)
 		args = append(args, values...)
-		if model != "" {
+		if k.Model != "" {
 			query += `AND instr(lower(s.model),lower(?))>0 `
-			args = append(args, model)
+			args = append(args, k.Model)
 		}
-		clause, values = scopePredicate(root)
+		clause, values = scopePredicate(k.Root)
 		query += clause
 		args = append(args, values...)
-		clause, values = rangePredicate(rng)
+		clause, values = rangePredicate(k.rng())
 		query += clause + `ORDER BY m.ts DESC,m.id DESC LIMIT ?`
 		args = append(args, values...)
 		args = append(args, limit)
@@ -422,34 +422,31 @@ func newestMatches(ctx context.Context, db *sql.DB, match, harness string, proje
 	}
 }
 
-func search(ctx context.Context, db *sql.DB, q, harness string, projects []string, limit int, allTime, includeSelf, includeAutomated bool, rng timeRange, root ...string) ([]hit, error) {
-	k := pageKey{Query: q, Harness: harness, Projects: projects, Limit: limit, AllTime: allTime, IncludeSelf: includeSelf, IncludeAutomated: includeAutomated, Since: rng.Since, Until: rng.Until}
-	if len(root) > 0 {
-		k.Root = root[0]
-	}
-	match := toFTS(q)
-	names, err := matchingProjects(ctx, db, projects)
+func search(ctx context.Context, db *sql.DB, k pageKey) ([]hit, error) {
+	match := toFTS(k.Query)
+	names, err := matchingProjects(ctx, db, k.Projects)
 	if err != nil {
 		return nil, err
 	}
 	started := time.Now()
 	out := []hit{}
 	common := false
-	if match != "" && !shortLatin(q) {
+	if match != "" && !shortLatin(k.Query) {
 		var e error
-		common, e = commonQuery(ctx, db, q, match)
+		common, e = commonQuery(ctx, db, k.Query, match)
 		if e != nil {
 			return nil, e
 		}
 	}
 	var e error
 	if common {
-		ids, err := newestMatches(ctx, db, match, harness, projects, names, false, includeSelf, includeAutomated, rng, limit, "", k.Root)
+		// Every current search caller leaves Model empty; pass the key through unchanged.
+		ids, err := newestMatches(ctx, db, k, match, names, false, k.Limit)
 		if err != nil {
 			return nil, err
 		}
-		if len(ids) < limit {
-			tools, err := newestMatches(ctx, db, match, harness, projects, names, true, includeSelf, includeAutomated, rng, limit-len(ids), "", k.Root)
+		if len(ids) < k.Limit {
+			tools, err := newestMatches(ctx, db, k, match, names, true, k.Limit-len(ids))
 			if err != nil {
 				return nil, err
 			}
@@ -462,12 +459,12 @@ func search(ctx context.Context, db *sql.DB, q, harness string, projects []strin
 			return nil, err
 		}
 		if match == "" {
-			out, e = fetchPageHits(ctx, db, `SELECT `+hitColumns+` `+from+`ORDER BY m.ts DESC,m.id DESC LIMIT ?`, append(args, limit)...)
+			out, e = fetchPageHits(ctx, db, `SELECT `+hitColumns+` `+from+`ORDER BY m.ts DESC,m.id DESC LIMIT ?`, append(args, k.Limit)...)
 		} else {
-			out, e = rankedPageHits(ctx, db, from, args, "bm25(messages_fts)", `!='tool'`, limit, 0)
-			if e == nil && len(out) < limit {
+			out, e = rankedPageHits(ctx, db, from, args, "bm25(messages_fts)", `!='tool'`, k.Limit, 0)
+			if e == nil && len(out) < k.Limit {
 				var tools []hit
-				tools, e = rankedPageHits(ctx, db, from, args, "bm25(messages_fts)", `='tool'`, limit-len(out), 0)
+				tools, e = rankedPageHits(ctx, db, from, args, "bm25(messages_fts)", `='tool'`, k.Limit-len(out), 0)
 				out = append(out, tools...)
 			}
 		}
@@ -480,7 +477,7 @@ func search(ctx context.Context, db *sql.DB, q, harness string, projects []strin
 		return nil, e
 	}
 	started = time.Now()
-	ts := terms(q)
+	ts := terms(k.Query)
 	for i := range out {
 		if i%16 == 0 {
 			if e = ctx.Err(); e != nil {

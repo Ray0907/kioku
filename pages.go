@@ -308,7 +308,7 @@ func newestPageHits(ctx context.Context, db *sql.DB, ids []int64) ([]hit, error)
 }
 
 func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int, noRedact ...bool) (hitPage, error) {
-	q, harness, limit := k.Query, k.Harness, k.Limit
+	q, limit := k.Query, k.Limit
 	p := hitPage{Hits: []compactHit{}}
 	names, err := matchingProjects(ctx, db, k.Projects)
 	if err != nil {
@@ -374,7 +374,7 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int, noRed
 			if common && k.MaxPerSession == 0 && len(k.Roles) == 0 {
 				ids := []int64{}
 				if offset < conversations {
-					found, err := newestMatches(ctx, db, toFTS(q), harness, k.Projects, names, false, k.IncludeSelf, k.IncludeAutomated, k.rng(), min(conversations, offset+limit), k.Model, k.Root)
+					found, err := newestMatches(ctx, db, k, toFTS(q), names, false, min(conversations, offset+limit))
 					if err != nil {
 						return p, err
 					}
@@ -382,7 +382,7 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int, noRed
 				}
 				if offset+limit > conversations && p.Total > conversations {
 					toolOffset := max(0, offset-conversations)
-					found, err := newestMatches(ctx, db, toFTS(q), harness, k.Projects, names, true, k.IncludeSelf, k.IncludeAutomated, k.rng(), min(p.Total-conversations, offset+limit-conversations), k.Model, k.Root)
+					found, err := newestMatches(ctx, db, k, toFTS(q), names, true, min(p.Total-conversations, offset+limit-conversations))
 					if err != nil {
 						return p, err
 					}

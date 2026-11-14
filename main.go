@@ -340,7 +340,7 @@ func run() error {
 			return renderHits(page, *opts.jsonFlag, q)
 		}
 	}
-	rows, e := search(context.Background(), db, q, *opts.harness, opts.projects, *opts.limit, *opts.allTime, *opts.includeSelf, *opts.includeAutomated, timeRange{}, root)
+	rows, e := search(context.Background(), db, pageKey{Query: q, Harness: *opts.harness, Projects: opts.projects, Limit: *opts.limit, AllTime: *opts.allTime, IncludeSelf: *opts.includeSelf, IncludeAutomated: *opts.includeAutomated, Root: root})
 	if e != nil {
 		return e
 	}

@@ -208,13 +208,13 @@ type syncEnvelope struct {
 
 func queryCmd(ctx context.Context, db *sql.DB, q, h string, projects []string, limit, rev int, allTime, includeSelf, includeAutomated bool, rng timeRange, root ...string) tea.Cmd {
 	return func() tea.Msg {
-		rows, e := search(ctx, db, q, h, projects, limit, allTime, includeSelf, includeAutomated, rng, root...)
-		if e != nil {
-			return resultMsg{revision: rev, err: e}
-		}
 		k := pageKey{Query: q, Harness: h, Projects: projects, Limit: limit, AllTime: allTime, IncludeSelf: includeSelf, IncludeAutomated: includeAutomated, Since: rng.Since, Until: rng.Until}
 		if len(root) > 0 {
 			k.Root = root[0]
+		}
+		rows, e := search(ctx, db, k)
+		if e != nil {
+			return resultMsg{revision: rev, err: e}
 		}
 		total, sessions, e := searchTotals(ctx, db, k, len(rows))
 		return resultMsg{revision: rev, rows: rows, total: total, totalSessions: sessions, err: e}

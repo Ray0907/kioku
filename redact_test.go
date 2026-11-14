@@ -317,7 +317,7 @@ func TestRedactIndexTUIAndStatsUntouched(t *testing.T) {
 	if err := db.QueryRow(`SELECT text FROM messages WHERE idx=0`).Scan(&stored); err != nil || stored != text {
 		t.Fatal("index text changed")
 	}
-	rows, err := search(context.Background(), db, "marker", "all", nil, 10, false, false, false, timeRange{})
+	rows, err := search(context.Background(), db, pageKey{Query: "marker", Harness: "all", Limit: 10})
 	if err != nil || len(rows) != 3 {
 		t.Fatalf("TUI search: %v", err)
 	}

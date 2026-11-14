@@ -44,7 +44,7 @@ func TestSearchTUIAndCLIOrder(t *testing.T) {
 				k := flags
 				k.Query, k.Limit = q, limit
 				t.Run(fmt.Sprintf("%s/%+v", q, k), func(t *testing.T) {
-					rows, err := search(ctx, db, q, k.Harness, k.Projects, limit, k.AllTime, k.IncludeSelf, k.IncludeAutomated, k.rng())
+					rows, err := search(ctx, db, k)
 					if err != nil {
 						t.Fatal(err)
 					}

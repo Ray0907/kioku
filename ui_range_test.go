@@ -32,7 +32,7 @@ var lastTwentyDays = timeRange{Since: ctxNow.AddDate(0, 0, -20).Format(boundLayo
 func TestSearchRangeEveryBranch(t *testing.T) {
 	db := rangeCorpus(t)
 	run := func(q string, rng timeRange) []hit {
-		rows, e := search(context.Background(), db, q, "all", nil, 50, false, false, false, rng)
+		rows, e := search(context.Background(), db, pageKey{Query: q, Harness: "all", Limit: 50, Since: rng.Since, Until: rng.Until})
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -108,7 +108,7 @@ COMMIT;`)
 			ctx, cancel := context.WithTimeout(context.Background(), budget)
 			defer cancel()
 			started := time.Now()
-			rows, err := search(ctx, db, "", tc.harness, tc.projects, 2000, false, tc.includeSelf, false, tc.rng)
+			rows, err := search(ctx, db, pageKey{Harness: tc.harness, Projects: tc.projects, Limit: 2000, IncludeSelf: tc.includeSelf, Since: tc.rng.Since, Until: tc.rng.Until})
 			elapsed := time.Since(started)
 			if err != nil || elapsed >= budget {
 				t.Fatalf("TUI empty-query search took %s (budget %s): %v", elapsed, budget, err)
@@ -148,7 +148,7 @@ func TestSearchRangeOnCommonWordPath(t *testing.T) {
 		}
 		addSession(t, db, []string{"new", "old"}[i], "claude", "/w/app", age, msgs...)
 	}
-	rows, e := search(context.Background(), db, "commontok", "all", nil, 500, false, false, false, lastTwentyDays)
+	rows, e := search(context.Background(), db, pageKey{Query: "commontok", Harness: "all", Limit: 500, Since: lastTwentyDays.Since, Until: lastTwentyDays.Until})
 	if e != nil || len(rows) != 160 || uids(rows[:1]) != "new" {
 		t.Fatalf("common path: %d rows err=%v", len(rows), e)
 	}
@@ -182,7 +182,7 @@ func settle(t *testing.T, m model, cmd tea.Cmd) model {
 
 func TestRangeKeyFlow(t *testing.T) {
 	db := rangeCorpus(t)
-	rows, _ := search(context.Background(), db, "login", "all", nil, 50, false, false, false, timeRange{})
+	rows, _ := search(context.Background(), db, pageKey{Query: "login", Harness: "all", Limit: 50})
 	m := newModel(db, "login", "all", nil, rows, false, 50, false)
 	m.focus, m.syncing = false, false
 	if len(m.rows) != 2 {

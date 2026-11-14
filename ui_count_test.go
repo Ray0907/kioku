@@ -94,7 +94,7 @@ func TestTUIHeaderTotalsFollowQuery(t *testing.T) {
 func TestTUIInitialCountsPendingSync(t *testing.T) {
 	db := rangeCorpus(t)
 	addSession(t, db, "recent", "pi", "/w/app", time.Hour, "user", "zz recent")
-	rows, err := search(context.Background(), db, "zz", "all", nil, 1, true, false, false, timeRange{})
+	rows, err := search(context.Background(), db, pageKey{Query: "zz", Harness: "all", Limit: 1, AllTime: true})
 	if err != nil {
 		t.Fatal(err)
 	}
