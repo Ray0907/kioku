@@ -71,8 +71,8 @@ SELECT printf('bulk-%04d',n), CASE n%2 WHEN 0 THEN 'claude' ELSE 'codex' END,
        CASE n%3 WHEN 0 THEN 'app' ELSE 'web' END, '', '', '', 200 FROM seq;
 WITH RECURSIVE seq(n) AS (VALUES(0) UNION ALL SELECT n+1 FROM seq WHERE n<1999),
      msg(idx) AS (VALUES(0) UNION ALL SELECT idx+1 FROM msg WHERE idx<199)
-INSERT INTO messages(id,session_uid,idx,ts,role,text,self)
-SELECT n*200+idx+1, printf('bulk-%04d',n), idx,
+INSERT INTO messages(id,session_id,idx,ts,role,text,self)
+SELECT n*200+idx+1, (SELECT session_id FROM sessions WHERE uid=printf('bulk-%04d',n)), idx,
        CASE n%5
          WHEN 0 THEN '2026-10-01T12:00:00Z'
          WHEN 1 THEN CASE idx WHEN 199 THEN '2026-10-15T12:00:00Z' ELSE '2026-10-01T12:00:00Z' END

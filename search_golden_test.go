@@ -26,7 +26,7 @@ func TestSearchTUIAndCLIOrder(t *testing.T) {
 		filler = append(filler, "tool", "ubiquitous filler")
 	}
 	addSession(t, db, "filler", "claude", "/w/other", 15*24*time.Hour, filler...)
-	if _, err := db.Exec(`UPDATE messages SET self=1 WHERE session_uid='self'; UPDATE sessions SET automated=1 WHERE uid='automated'`); err != nil {
+	if _, err := db.Exec(`UPDATE messages SET self=1 WHERE session_id=(SELECT session_id FROM sessions WHERE uid='self'); UPDATE sessions SET automated=1 WHERE uid='automated'`); err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()

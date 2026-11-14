@@ -24,7 +24,7 @@ type facets struct {
 func facetCounts(ctx context.Context, db *sql.DB, from string, args []any, distinct, weeks bool) (*facets, error) {
 	count := `count(*)`
 	if distinct {
-		count = `count(DISTINCT m.session_uid)`
+		count = `count(DISTINCT m.session_id)`
 	}
 	group := func(expr, order string, limit int) ([]facetCount, error) {
 		return groupLimited(ctx, db, `SELECT `+expr+` v,`+count+` c `+from+`GROUP BY v ORDER BY `+order, args, limit,

@@ -197,7 +197,7 @@ func compactShow(ctx context.Context, db *sql.DB, k pageKey, offset int, noRedac
 		return p, e
 	}
 	var count int
-	if e = db.QueryRowContext(ctx, `SELECT count(*) FROM messages WHERE session_uid=?`, uid).Scan(&count); e != nil {
+	if e = db.QueryRowContext(ctx, `SELECT count(*) FROM messages WHERE session_id=(SELECT session_id FROM sessions WHERE uid=?)`, uid).Scan(&count); e != nil {
 		return p, e
 	}
 	if count == 0 {
@@ -229,13 +229,13 @@ func compactShow(ctx context.Context, db *sql.DB, k pageKey, offset int, noRedac
 				SELECT idx,role,ts,CASE WHEN role='asst' THEN
 					idx-row_number() OVER (PARTITION BY role,ts ORDER BY idx)
 					ELSE idx END AS block
-				FROM messages WHERE session_uid=?
+				FROM messages WHERE session_id=(SELECT session_id FROM sessions WHERE uid=?)
 			) WHERE role IN ('user','asst') GROUP BY role,ts,block
 		) reply ON part.idx BETWEEN first_idx AND last_idx
-		WHERE part.session_uid=? AND (reply.role='user' OR next_role='user' OR next_role IS NULL)
+		WHERE part.session_id=(SELECT session_id FROM sessions WHERE uid=?) AND (reply.role='user' OR next_role='user' OR next_role IS NULL)
 	)`
 	if k.Outline {
-		if e = db.QueryRowContext(ctx, `SELECT count(*) FROM messages m WHERE session_uid=?`+outlineFilter, uid, uid, uid).Scan(&p.Total); e != nil {
+		if e = db.QueryRowContext(ctx, `SELECT count(*) FROM messages m WHERE session_id=(SELECT session_id FROM sessions WHERE uid=?)`+outlineFilter, uid, uid, uid).Scan(&p.Total); e != nil {
 			return p, e
 		}
 	}
@@ -251,7 +251,7 @@ func compactShow(ctx context.Context, db *sql.DB, k pageKey, offset int, noRedac
 		first = selected
 	}
 	var ts string
-	if e = db.QueryRowContext(ctx, `SELECT ts FROM messages WHERE session_uid=? AND idx=?`, uid, first).Scan(&ts); e != nil {
+	if e = db.QueryRowContext(ctx, `SELECT ts FROM messages WHERE session_id=(SELECT session_id FROM sessions WHERE uid=?) AND idx=?`, uid, first).Scan(&ts); e != nil {
 		return p, e
 	}
 	if len(ts) >= 10 {
@@ -265,7 +265,7 @@ func compactShow(ctx context.Context, db *sql.DB, k pageKey, offset int, noRedac
 			matched = `1 ` + selfFilter(k.IncludeSelf) + `AND EXISTS(SELECT 1 FROM messages_fts WHERE messages_fts.rowid=m.id AND messages_fts MATCH ?)`
 			args = append(args, match)
 		}
-		query := `SELECT idx,ts,role,text,` + matched + ` FROM messages m WHERE session_uid=?`
+		query := `SELECT idx,ts,role,text,` + matched + ` FROM messages m WHERE session_id=(SELECT session_id FROM sessions WHERE uid=?)`
 		args = append(args, uid)
 		if k.Outline {
 			query += outlineFilter + ` ORDER BY idx LIMIT ? OFFSET ?`

@@ -43,7 +43,7 @@ func TestSearchKeyInclusionFlags(t *testing.T) {
 	}
 	defer db.Close()
 	addSession(t, db, "self", "codex", "/w/app", 0, "user", "b7needle self message")
-	if _, err := db.Exec(`UPDATE messages SET self=1 WHERE session_uid='self'`); err != nil {
+	if _, err := db.Exec(`UPDATE messages SET self=1 WHERE session_id=(SELECT session_id FROM sessions WHERE uid='self')`); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {

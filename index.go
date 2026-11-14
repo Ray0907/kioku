@@ -54,11 +54,18 @@ func openDB() (*sql.DB, error) {
 		return nil, e
 	}
 	db.SetMaxOpenConns(3)
-	_, e = db.Exec(`PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL;
-CREATE TABLE IF NOT EXISTS meta (schema_version INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS sessions (uid TEXT PRIMARY KEY, harness TEXT, native_id TEXT, path TEXT, cwd TEXT, project TEXT, model TEXT, started TEXT, updated TEXT);
-CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY, session_uid TEXT, idx INTEGER, ts TEXT, role TEXT, text TEXT);
-CREATE INDEX IF NOT EXISTS messages_session ON messages(session_uid,idx);
+	_, e = db.Exec(`PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL;`)
+	if e == nil {
+		e = migrateIndex(db)
+	}
+	if e != nil {
+		db.Close()
+		return nil, e
+	}
+	_, e = db.Exec(`CREATE TABLE IF NOT EXISTS meta (schema_version INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS sessions (session_id INTEGER PRIMARY KEY, uid TEXT NOT NULL UNIQUE, harness TEXT, native_id TEXT, path TEXT, cwd TEXT, project TEXT, model TEXT, started TEXT, updated TEXT);
+CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY, session_id INTEGER NOT NULL, idx INTEGER, ts TEXT, role TEXT, text TEXT);
+CREATE INDEX IF NOT EXISTS messages_session_id ON messages(session_id,idx);
 CREATE INDEX IF NOT EXISTS messages_ts ON messages(ts);
 CREATE TABLE IF NOT EXISTS sources (path TEXT PRIMARY KEY, mtime INTEGER, size INTEGER);
 CREATE TABLE IF NOT EXISTS dirs (path TEXT PRIMARY KEY, mtime INTEGER);
@@ -89,7 +96,7 @@ INSERT INTO meta(schema_version) SELECT 1 WHERE NOT EXISTS(SELECT 1 FROM meta);`
 		e = ensureColumn(db, "sources", "updated", "INTEGER DEFAULT 0")
 	}
 	if e == nil {
-		_, e = db.Exec(`UPDATE sessions SET msg_count=(SELECT count(*) FROM messages WHERE session_uid=sessions.uid) WHERE msg_count IS NULL`)
+		_, e = db.Exec(`UPDATE sessions SET msg_count=(SELECT count(*) FROM messages WHERE session_id=sessions.session_id) WHERE msg_count IS NULL`)
 	}
 	if e == nil {
 		_, e = db.Exec(`UPDATE meta SET schema_version=2 WHERE schema_version<2`)
@@ -476,13 +483,17 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 				return stats, e
 			}
 		}
+		var sessionID int64
+		if e = tx.QueryRow("SELECT session_id FROM sessions WHERE uid=?", s.UID).Scan(&sessionID); e != nil {
+			return stats, e
+		}
 		for _, m := range s.Messages {
-			if _, e = tx.Exec("INSERT INTO messages(session_uid,idx,ts,role,text,self) VALUES(?,?,?,?,?,?)", s.UID, m.Index, m.TS, m.Role, m.Text, m.Self); e != nil {
+			if _, e = tx.Exec("INSERT INTO messages(session_id,idx,ts,role,text,self) VALUES(?,?,?,?,?,?)", sessionID, m.Index, m.TS, m.Role, m.Text, m.Self); e != nil {
 				return stats, e
 			}
 		}
 		var firstUser string
-		err = tx.QueryRow("SELECT text FROM messages WHERE session_uid=? AND role='user' ORDER BY idx LIMIT 1", s.UID).Scan(&firstUser)
+		err = tx.QueryRow("SELECT text FROM messages WHERE session_id=? AND role='user' ORDER BY idx LIMIT 1", sessionID).Scan(&firstUser)
 		if err != nil && err != sql.ErrNoRows {
 			return stats, err
 		}
@@ -509,7 +520,7 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 		if _, e = tx.Exec("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')"); e != nil {
 			return stats, e
 		}
-		if _, e = tx.Exec("UPDATE meta SET schema_version=5"); e != nil {
+		if _, e = tx.Exec("UPDATE meta SET schema_version=6"); e != nil {
 			return stats, e
 		}
 	}
@@ -537,7 +548,7 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 	return stats, rows.Err()
 }
 func removeSource(tx *sql.Tx, p string) error {
-	for _, q := range []string{"DELETE FROM messages WHERE session_uid IN (SELECT uid FROM sessions WHERE path=?)", "DELETE FROM sessions WHERE path=?", "DELETE FROM sources WHERE path=?"} {
+	for _, q := range []string{"DELETE FROM messages WHERE session_id IN (SELECT session_id FROM sessions WHERE path=?)", "DELETE FROM sessions WHERE path=?", "DELETE FROM sources WHERE path=?"} {
 		if _, e := tx.Exec(q, p); e != nil {
 			return e
 		}
@@ -564,7 +575,7 @@ func ageAt(ts string, now time.Time) string {
 }
 
 func classifyAutomated(tx *sql.Tx) error {
-	rows, e := tx.Query(`SELECT s.uid,coalesce((SELECT text FROM messages m WHERE m.session_uid=s.uid AND m.role='user' ORDER BY m.idx LIMIT 1),'') FROM sessions s`)
+	rows, e := tx.Query(`SELECT s.uid,coalesce((SELECT text FROM messages m WHERE m.session_id=s.session_id AND m.role='user' ORDER BY m.idx LIMIT 1),'') FROM sessions s`)
 	if e != nil {
 		return e
 	}

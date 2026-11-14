@@ -53,7 +53,7 @@ func collectStats(ctx context.Context, db *sql.DB, harness string, projects []st
 	if e != nil {
 		return statsReport{}, e
 	}
-	from := `FROM messages m JOIN sessions s ON s.uid=m.session_uid WHERE 1 ` + selfFilter(false)
+	from := `FROM messages m JOIN sessions s ON s.session_id=m.session_id WHERE 1 ` + selfFilter(false)
 	var args []any
 	if harness != "all" {
 		from += `AND s.harness=? `
@@ -77,7 +77,7 @@ func collectStats(ctx context.Context, db *sql.DB, harness string, projects []st
 		args = append(args, values...)
 	}
 
-	aggs := `count(DISTINCT m.session_uid),count(*),` + lastActiveExpr
+	aggs := `count(DISTINCT m.session_id),count(*),` + lastActiveExpr
 	var r statsReport
 	if e = db.QueryRowContext(ctx, `SELECT '',`+aggs+` `+from, args...).Scan(&r.Total.Value, &r.Total.Sessions, &r.Total.Messages, &r.Total.LastActive); e != nil {
 		return r, e

@@ -49,7 +49,7 @@ func modelFixture(t *testing.T) {
 			stamp = stamp.AddDate(0, 0, -30)
 		}
 		for i := 0; i < s.messages; i++ {
-			if _, err := db.Exec(`INSERT INTO messages(session_uid,idx,ts,role,text) VALUES(?,?,?,?,?)`, s.uid, i, stamp.Format(time.RFC3339Nano), []string{"user", "asst", "tool"}[i%3], fmt.Sprintf("modelprobe model --model message %d", i)); err != nil {
+			if _, err := db.Exec(`INSERT INTO messages(session_id,idx,ts,role,text) VALUES((SELECT session_id FROM sessions WHERE uid=?),?,?,?,?)`, s.uid, i, stamp.Format(time.RFC3339Nano), []string{"user", "asst", "tool"}[i%3], fmt.Sprintf("modelprobe model --model message %d", i)); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -329,7 +329,7 @@ func TestModelCapAndCommonWord(t *testing.T) {
 	}
 	defer db.Close()
 	_, err = db.Exec(`WITH RECURSIVE n(x) AS (VALUES(6) UNION ALL SELECT x+1 FROM n WHERE x<325)
-INSERT INTO messages(session_uid,idx,ts,role,text) SELECT 'model-decoy',x,?,'user','modelprobe' FROM n`, time.Now().UTC().Add(time.Minute).Format(time.RFC3339Nano))
+INSERT INTO messages(session_id,idx,ts,role,text) SELECT (SELECT session_id FROM sessions WHERE uid='model-decoy'),x,?,'user','modelprobe' FROM n`, time.Now().UTC().Add(time.Minute).Format(time.RFC3339Nano))
 	if err != nil {
 		t.Fatal(err)
 	}

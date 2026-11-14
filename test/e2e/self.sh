@@ -45,7 +45,7 @@ with sqlite3.connect(home/'index.db') as db:
  db.execute('ALTER TABLE messages DROP COLUMN self')
  for _,sql in triggers: db.execute(sql)
  db.execute('UPDATE meta SET schema_version=2')
- old_rows=db.execute('SELECT id,session_uid,idx,ts,role,text FROM messages ORDER BY id').fetchall()
+ old_rows=db.execute('SELECT id,session_id,idx,ts,role,text FROM messages ORDER BY id').fetchall()
  old_sources=db.execute('SELECT * FROM sources ORDER BY path').fetchall()
 # A symlink to a nonempty directory reliably fails reading, even when tests run as root.
 source=home/'.pi/agent/sessions/self/self.jsonl'; saved=source.with_suffix('.saved')
@@ -56,7 +56,7 @@ try:
  assert failed.returncode and 'migration' in failed.stderr, failed
  with sqlite3.connect(home/'index.db') as db:
   assert db.execute('SELECT schema_version FROM meta').fetchone()[0]==2
-  assert db.execute('SELECT id,session_uid,idx,ts,role,text FROM messages ORDER BY id').fetchall()==old_rows
+  assert db.execute('SELECT id,session_id,idx,ts,role,text FROM messages ORDER BY id').fetchall()==old_rows
   assert db.execute('SELECT * FROM sources ORDER BY path').fetchall()==old_sources
 finally:
  source.unlink(); saved.rename(source)

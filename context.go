@@ -67,7 +67,7 @@ func contextText(ctx context.Context, db *sql.DB, dir string, now time.Time, noR
 			continue
 		}
 		s.topic = topic
-		err = db.QueryRowContext(ctx, `SELECT text FROM messages WHERE session_uid=? AND role='user' AND self=0 ORDER BY idx DESC LIMIT 1`, s.uid).Scan(&s.asked)
+		err = db.QueryRowContext(ctx, `SELECT text FROM messages WHERE session_id=(SELECT session_id FROM sessions WHERE uid=?) AND role='user' AND self=0 ORDER BY idx DESC LIMIT 1`, s.uid).Scan(&s.asked)
 		if err == sql.ErrNoRows {
 			continue
 		}
@@ -101,7 +101,7 @@ func contextText(ctx context.Context, db *sql.DB, dir string, now time.Time, noR
 	fmt.Fprintf(&b, "kioku: recent sessions in this project, across your coding agents (%d of %d from the last %d days):\n\n", len(out), len(asked), contextDays)
 	for _, s := range out {
 		var reply string
-		err := db.QueryRowContext(ctx, `SELECT text FROM messages WHERE session_uid=? AND role='asst' AND self=0 ORDER BY idx DESC LIMIT 1`, s.uid).Scan(&reply)
+		err := db.QueryRowContext(ctx, `SELECT text FROM messages WHERE session_id=(SELECT session_id FROM sessions WHERE uid=?) AND role='asst' AND self=0 ORDER BY idx DESC LIMIT 1`, s.uid).Scan(&reply)
 		if err != nil && err != sql.ErrNoRows {
 			return "", err
 		}

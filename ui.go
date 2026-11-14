@@ -278,7 +278,7 @@ func (m *model) requestLoad() tea.Cmd {
 		msgs, e := transcript(ctx, m.db, selected.UID)
 		hits := map[int]bool{}
 		if e == nil && toFTS(q) != "" {
-			rows, err := m.db.QueryContext(ctx, `SELECT m.idx FROM messages_fts JOIN messages m ON m.id=messages_fts.rowid WHERE messages_fts MATCH ? AND m.session_uid=? `+selfFilter(includeSelf), toFTS(q), selected.UID)
+			rows, err := m.db.QueryContext(ctx, `SELECT m.idx FROM messages_fts JOIN messages m ON m.id=messages_fts.rowid WHERE messages_fts MATCH ? AND m.session_id=(SELECT session_id FROM sessions WHERE uid=?) `+selfFilter(includeSelf), toFTS(q), selected.UID)
 			if err == nil {
 				for rows.Next() {
 					var i int

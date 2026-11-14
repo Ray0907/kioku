@@ -26,7 +26,7 @@ func roleFixture(t *testing.T) {
 			t.Fatal(err)
 		}
 		for i := 0; i < 6-n*3; i++ {
-			_, err = db.Exec(`INSERT INTO messages(session_uid,idx,ts,role,text) VALUES(?,?,?,?,?)`, name, i, time.Now().UTC().Format(time.RFC3339), []string{"user", "asst", "tool"}[i%3], fmt.Sprintf("roleprobe message %d", i))
+			_, err = db.Exec(`INSERT INTO messages(session_id,idx,ts,role,text) VALUES((SELECT session_id FROM sessions WHERE uid=?),?,?,?,?)`, name, i, time.Now().UTC().Format(time.RFC3339), []string{"user", "asst", "tool"}[i%3], fmt.Sprintf("roleprobe message %d", i))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -187,7 +187,7 @@ func TestRoleCommonWord(t *testing.T) {
 	}
 	defer db.Close()
 	_, err = db.Exec(`WITH RECURSIVE n(x) AS (VALUES(6) UNION ALL SELECT x+1 FROM n WHERE x<305)
-INSERT INTO messages(session_uid,idx,ts,role,text) SELECT 'alpha',x,?,'tool','roleprobe' FROM n`, time.Now().UTC().Format(time.RFC3339))
+INSERT INTO messages(session_id,idx,ts,role,text) SELECT (SELECT session_id FROM sessions WHERE uid='alpha'),x,?,'tool','roleprobe' FROM n`, time.Now().UTC().Format(time.RFC3339))
 	if err != nil {
 		t.Fatal(err)
 	}

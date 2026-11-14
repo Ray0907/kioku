@@ -35,7 +35,7 @@ func addSession(t *testing.T, db *sql.DB, uid, harness, cwd string, ago time.Dur
 		t.Fatal(e)
 	}
 	for i := 0; i+1 < len(msgs); i += 2 {
-		if _, e := db.Exec(`INSERT INTO messages(session_uid,idx,ts,role,text,self) VALUES(?,?,?,?,?,0)`, uid, i/2, ts(i/2), msgs[i], msgs[i+1]); e != nil {
+		if _, e := db.Exec(`INSERT INTO messages(session_id,idx,ts,role,text,self) VALUES((SELECT session_id FROM sessions WHERE uid=?),?,?,?,?,0)`, uid, i/2, ts(i/2), msgs[i], msgs[i+1]); e != nil {
 			t.Fatal(e)
 		}
 	}

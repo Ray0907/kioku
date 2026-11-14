@@ -33,7 +33,7 @@ env=dict(os.environ,HOME=str(home),KIOKU_INDEX=str(home/'index.db'),TZ='UTC')
 for k in ['KIOKU_CLAUDE_DIR','KIOKU_CODEX_DIR','KIOKU_PI_DIR','KIOKU_GROK_DIR','KIOKU_OPENCODE_DB','KIOKU_CURSOR_DIR','KIOKU_AGY_DIR','XDG_DATA_HOME','CLAUDE_CONFIG_DIR','CODEX_HOME','PI_CODING_AGENT_DIR']:
 	env.pop(k,None)
 def run(args,exe=None,ok=True,tz=None):
-	p=subprocess.run([exe or binary,*args],env=dict(env,TZ=tz or 'UTC'),text=True,capture_output=True,timeout=60)
+	p=subprocess.run([exe or binary,*args],env=dict(env,TZ=tz or 'UTC',KIOKU_INDEX=str(tmp/'base-index.db') if exe==base_bin else env['KIOKU_INDEX']),text=True,capture_output=True,timeout=60)
 	if ok: assert p.returncode==0,(args,p.stderr)
 	return p
 def js(*args): return json.loads(run(['--json',*args]).stdout)
@@ -65,7 +65,7 @@ passed('invalid --format values, md with --json and md outside show are errors w
 # ---- stats -------------------------------------------------------------------------------
 db=sqlite3.connect(home/'index.db')
 def truth(col):
-	q=f'SELECT s.{col},count(DISTINCT m.session_uid),count(*) FROM messages m JOIN sessions s ON s.uid=m.session_uid WHERE m.self=0 GROUP BY 1'
+	q=f'SELECT s.{col},count(DISTINCT m.session_id),count(*) FROM messages m JOIN sessions s ON s.session_id=m.session_id WHERE m.self=0 GROUP BY 1'
 	return {v:(a,b) for v,a,b in db.execute(q)}
 st=js_stats=json.loads(run(['stats','--json']).stdout)
 for col,key in (('harness','harness'),('project','project')):

@@ -127,8 +127,15 @@ def schema(path):
 	with sqlite3.connect(path) as db: return db.execute("SELECT name,sql FROM sqlite_master ORDER BY name").fetchall()
 new_schema=schema(home/'index.db')
 assert any('automated INTEGER NOT NULL DEFAULT 0' in (sql or '') for name,sql in new_schema if name=='sessions'),new_schema
-assert [(n,q.replace(', automated INTEGER NOT NULL DEFAULT 0','') if q else q) for n,q in new_schema]==schema(base_env_index),new_schema
-passed('index schema matches v0.7.0 except the added sessions.automated column')
+expected_schema=[]
+for n,q in schema(base_env_index):
+	if n=='sessions': q=q.replace('uid TEXT PRIMARY KEY','session_id INTEGER PRIMARY KEY, uid TEXT NOT NULL UNIQUE')
+	elif n=='messages': q=q.replace('session_uid TEXT','session_id INTEGER NOT NULL')
+	elif n=='messages_session':
+		n='messages_session_id'; q=q.replace('messages_session','messages_session_id').replace('session_uid','session_id')
+	expected_schema.append((n,q))
+assert [(n,q.replace(', automated INTEGER NOT NULL DEFAULT 0','') if q else q) for n,q in new_schema]==expected_schema,new_schema
+passed('index schema matches v0.7.0 except the integer session key and sessions.automated')
 
 # ---- boundary: fractional seconds and half-open interval ---------------
 def texts(page): return sorted(h['snippet'] for h in page['hits'])

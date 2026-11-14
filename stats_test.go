@@ -62,7 +62,7 @@ func TestStatsRangeCountsMessagesInsideIt(t *testing.T) {
 
 func TestStatsFiltersAndSelf(t *testing.T) {
 	db := statsCorpus(t)
-	if _, e := db.Exec(`INSERT INTO messages(session_uid,idx,ts,role,text,self) VALUES('a',9,'2026-10-23T11:30:00Z','tool','kioku search',1)`); e != nil {
+	if _, e := db.Exec(`INSERT INTO messages(session_id,idx,ts,role,text,self) VALUES((SELECT session_id FROM sessions WHERE uid='a'),9,'2026-10-23T11:30:00Z','tool','kioku search',1)`); e != nil {
 		t.Fatal(e)
 	}
 	r := collect(t, db, "codex", nil, timeRange{})

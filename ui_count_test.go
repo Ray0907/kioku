@@ -47,7 +47,7 @@ func TestTUIHeaderTotals(t *testing.T) {
 func TestTUIHeaderTotalsFollowQuery(t *testing.T) {
 	db := rangeCorpus(t)
 	addSession(t, db, "tools", "claude", "/w/app", time.Hour, "tool", "login tool")
-	if _, err := db.Exec(`UPDATE messages SET self=1 WHERE session_uid='tools'`); err != nil {
+	if _, err := db.Exec(`UPDATE messages SET self=1 WHERE session_id=(SELECT session_id FROM sessions WHERE uid='tools')`); err != nil {
 		t.Fatal(err)
 	}
 	m := model{db: db, q: "login", harness: "all", limit: 1, width: 120, height: 24, pal: light}

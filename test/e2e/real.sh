@@ -25,7 +25,7 @@ PY
 export HOME="$REALHOME" KIOKU_INDEX="$REALTMP/index.db"
 start=$SECONDS; realout=$("$BIN" index --rebuild 2>&1); rc=$?; python3 - "$REALTMP/independent.txt" "$REALTMP/app.txt" <<'PY'
 import sqlite3,sys
-rows=sqlite3.connect(sys.argv[2].replace('app.txt','index.db')).execute('select harness,count(distinct uid),sum((select count(*) from messages m where m.session_uid=s.uid)) from sessions s group by harness').fetchall()
+rows=sqlite3.connect(sys.argv[2].replace('app.txt','index.db')).execute('select harness,count(distinct uid),sum((select count(*) from messages m where m.session_id=s.session_id)) from sessions s group by harness').fetchall()
 open(sys.argv[2],'w').write('\n'.join('%s %s %s'%r for r in rows)+'\n')
 PY
 { printf 'independent: harness total_jsonl raw_user_assistant_text_blocks\n'; cat "$REALTMP/independent.txt"; printf 'indexed: harness sessions message_rows\n'; cat "$REALTMP/app.txt"; } > "$TEST/out/real-store-counts.txt"

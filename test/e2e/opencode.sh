@@ -116,7 +116,7 @@ def indexed_opencode():
  with sqlite3.connect(env['KIOKU_INDEX']) as db:
   return [db.execute(q).fetchall() for q in [
    "SELECT * FROM sessions WHERE harness='opencode' ORDER BY uid",
-   "SELECT * FROM messages WHERE session_uid IN (SELECT uid FROM sessions WHERE harness='opencode') ORDER BY id",
+   "SELECT * FROM messages WHERE session_id IN (SELECT session_id FROM sessions WHERE harness='opencode') ORDER BY id",
    "SELECT * FROM sources WHERE path IN (SELECT path FROM sessions WHERE harness='opencode') ORDER BY path"]]
 preserved=indexed_opencode()
 assert preserved[0] and preserved[1] and preserved[2]

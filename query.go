@@ -288,7 +288,7 @@ func selfFilter(includeSelf bool) string {
 func searchFilter(includeSelf, includeAutomated bool) string {
 	clause := selfFilter(includeSelf)
 	if !includeAutomated {
-		clause += `AND m.session_uid NOT IN (SELECT uid FROM sessions WHERE automated=1) `
+		clause += `AND m.session_id NOT IN (SELECT session_id FROM sessions WHERE automated=1) `
 	}
 	return clause
 }
@@ -302,9 +302,9 @@ func newestMatches(ctx context.Context, db *sql.DB, k pageKey, match string, nam
 		query := `SELECT m.id FROM messages m INDEXED BY messages_ts `
 		args := []any{}
 		if len(k.Projects) > 0 {
-			query = `SELECT m.id FROM sessions s CROSS JOIN messages m INDEXED BY messages_session ON m.session_uid=s.uid WHERE `
+			query = `SELECT m.id FROM sessions s CROSS JOIN messages m INDEXED BY messages_session_id ON m.session_id=s.session_id WHERE `
 		} else if k.Harness != "" && k.Harness != "all" || k.Model != "" || k.Root != "" {
-			query += `CROSS JOIN sessions s ON s.uid=m.session_uid WHERE `
+			query += `CROSS JOIN sessions s ON s.session_id=m.session_id WHERE `
 		} else {
 			query += `WHERE `
 		}
@@ -504,12 +504,12 @@ func searchTotals(ctx context.Context, db *sql.DB, k pageKey, shown int) (int, i
 		return 0, 0, err
 	}
 	var total, sessions int
-	err = db.QueryRowContext(ctx, `SELECT count(*),count(DISTINCT m.session_uid) `+from, args...).Scan(&total, &sessions)
+	err = db.QueryRowContext(ctx, `SELECT count(*),count(DISTINCT m.session_id) `+from, args...).Scan(&total, &sessions)
 	return total, sessions, err
 }
 
 func transcript(ctx context.Context, db *sql.DB, uid string) ([]message, error) {
-	rows, e := db.QueryContext(ctx, "SELECT id,idx,ts,role,text FROM messages WHERE session_uid=? ORDER BY idx", uid)
+	rows, e := db.QueryContext(ctx, "SELECT id,idx,ts,role,text FROM messages WHERE session_id=(SELECT session_id FROM sessions WHERE uid=?) ORDER BY idx", uid)
 	if e != nil {
 		return nil, e
 	}

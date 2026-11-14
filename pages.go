@@ -197,7 +197,7 @@ func matchSource(ctx context.Context, db *sql.DB, k pageKey, names []string, sco
 	harness := k.Harness
 	if toFTS(k.Query) == "" {
 		roleClause, args := rolePredicate(k.Roles)
-		from := `FROM sessions s CROSS JOIN messages m WHERE m.session_uid=s.uid AND m.idx=(SELECT max(idx) FROM messages m WHERE session_uid=s.uid ` + searchFilter(k.IncludeSelf, k.IncludeAutomated) + roleClause + `) `
+		from := `FROM sessions s CROSS JOIN messages m WHERE m.session_id=s.session_id AND m.idx=(SELECT max(idx) FROM messages m WHERE session_id=s.session_id ` + searchFilter(k.IncludeSelf, k.IncludeAutomated) + roleClause + `) `
 		if harness != "" && harness != "all" {
 			from += `AND s.harness=? `
 			args = append(args, harness)
@@ -219,7 +219,7 @@ func matchSource(ctx context.Context, db *sql.DB, k pageKey, names []string, sco
 	}
 	from := `FROM messages_fts JOIN messages m ON m.id=messages_fts.rowid `
 	if harness != "" && harness != "all" || len(k.Projects) > 0 || k.Facets || k.Model != "" || k.Root != "" {
-		from += `JOIN sessions s ON s.uid=m.session_uid `
+		from += `JOIN sessions s ON s.session_id=m.session_id `
 	}
 	from += `WHERE messages_fts MATCH ? ` + searchFilter(k.IncludeSelf, k.IncludeAutomated)
 	args := []any{toFTS(k.Query)}
@@ -265,7 +265,7 @@ func matchSource(ctx context.Context, db *sql.DB, k pageKey, names []string, sco
 	if k.MaxPerSession > 0 {
 		// Rank inside each session, then keep the first N. Doing this in SQL keeps
 		// total, paging and cursors consistent with what is shown.
-		inner := `SELECT id FROM (SELECT id,row_number() OVER (PARTITION BY session_uid ORDER BY (role='tool'),score,ts DESC,id DESC) rn FROM (SELECT m.id,m.session_uid,m.role,m.ts,` + score + ` score ` + from + `)) WHERE rn<=? `
+		inner := `SELECT id FROM (SELECT id,row_number() OVER (PARTITION BY session_id ORDER BY (role='tool'),score,ts DESC,id DESC) rn FROM (SELECT m.id,m.session_id,m.role,m.ts,` + score + ` score ` + from + `)) WHERE rn<=? `
 		from += `AND m.id IN (` + inner + `) `
 		args = append(append(args, args...), k.MaxPerSession)
 	}
@@ -292,7 +292,7 @@ func fetchPageHits(ctx context.Context, db *sql.DB, query string, args ...any) (
 const hitColumns = `s.uid,s.harness,s.native_id,s.project,s.cwd,s.path,m.id,m.idx,m.ts,m.role,m.text`
 
 func rankedPageHits(ctx context.Context, db *sql.DB, from string, args []any, score, role string, limit, offset int) ([]hit, error) {
-	query := `WITH ranked AS MATERIALIZED (SELECT m.id,m.ts,` + score + ` score ` + from + `AND m.role` + role + ` ORDER BY score,m.ts DESC,m.id DESC LIMIT ? OFFSET ?) SELECT ` + hitColumns + ` FROM ranked r JOIN messages m ON m.id=r.id JOIN sessions s ON s.uid=m.session_uid ORDER BY r.score,r.ts DESC,r.id DESC`
+	query := `WITH ranked AS MATERIALIZED (SELECT m.id,m.ts,` + score + ` score ` + from + `AND m.role` + role + ` ORDER BY score,m.ts DESC,m.id DESC LIMIT ? OFFSET ?) SELECT ` + hitColumns + ` FROM ranked r JOIN messages m ON m.id=r.id JOIN sessions s ON s.session_id=m.session_id ORDER BY r.score,r.ts DESC,r.id DESC`
 	return fetchPageHits(ctx, db, query, append(args, limit, offset)...)
 }
 
@@ -304,7 +304,7 @@ func newestPageHits(ctx context.Context, db *sql.DB, ids []int64) ([]hit, error)
 	for i, id := range ids {
 		args[i] = id
 	}
-	return fetchPageHits(ctx, db, `SELECT `+hitColumns+` FROM messages m JOIN sessions s ON s.uid=m.session_uid WHERE m.id IN (`+strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")+`) ORDER BY (m.role='tool'),m.ts DESC,m.id DESC`, args...)
+	return fetchPageHits(ctx, db, `SELECT `+hitColumns+` FROM messages m JOIN sessions s ON s.session_id=m.session_id WHERE m.id IN (`+strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")+`) ORDER BY (m.role='tool'),m.ts DESC,m.id DESC`, args...)
 }
 
 func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int, noRedact ...bool) (hitPage, error) {
@@ -359,7 +359,7 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int, noRed
 		}
 		p.OmittedOlder = omitted
 		var conversations int
-		if e = db.QueryRowContext(ctx, `SELECT count(*),coalesce(sum(m.role!='tool'),0),count(DISTINCT m.session_uid) `+from, args...).Scan(&p.Total, &conversations, &p.TotalSessions); e != nil {
+		if e = db.QueryRowContext(ctx, `SELECT count(*),coalesce(sum(m.role!='tool'),0),count(DISTINCT m.session_id) `+from, args...).Scan(&p.Total, &conversations, &p.TotalSessions); e != nil {
 			return p, e
 		}
 		if k.Facets {
@@ -423,7 +423,7 @@ func compactSearch(ctx context.Context, db *sql.DB, k pageKey, offset int, noRed
 }
 
 func sessionTopic(ctx context.Context, db *sql.DB, uid string, noRedact ...bool) (string, error) {
-	rows, err := db.QueryContext(ctx, `SELECT text FROM messages WHERE session_uid=? AND role='user' ORDER BY idx`, uid)
+	rows, err := db.QueryContext(ctx, `SELECT text FROM messages WHERE session_id=(SELECT session_id FROM sessions WHERE uid=?) AND role='user' ORDER BY idx`, uid)
 	if err != nil {
 		return "", err
 	}
@@ -479,7 +479,7 @@ func compactSessions(ctx context.Context, db *sql.DB, k pageKey, offset int, noR
 		}
 		p.OmittedOlder = omitted
 		args = values
-		if e = db.QueryRowContext(ctx, `SELECT count(DISTINCT m.session_uid) `+from, args...).Scan(&p.Total); e != nil {
+		if e = db.QueryRowContext(ctx, `SELECT count(DISTINCT m.session_id) `+from, args...).Scan(&p.Total); e != nil {
 			return p, e
 		}
 		if k.Facets {
@@ -498,7 +498,7 @@ func compactSessions(ctx context.Context, db *sql.DB, k pageKey, offset int, noR
 		if common {
 			score = `0`
 		}
-		query = `WITH matched AS MATERIALIZED (SELECT m.id,m.session_uid,m.ts,m.role,` + score + ` score ` + from + `), ranked AS (SELECT id,session_uid,ts,role,score,count(*) OVER (PARTITION BY session_uid) hits,sum(role='user') OVER (PARTITION BY session_uid) you,sum(role='asst') OVER (PARTITION BY session_uid) asst,sum(role='tool') OVER (PARTITION BY session_uid) tool,row_number() OVER (PARTITION BY session_uid ORDER BY (role='tool'),score,ts DESC,id DESC) rn FROM matched) SELECT s.uid,s.harness,s.project,m.ts,m.text,r.hits,m.idx,r.you,r.asst,r.tool FROM ranked r JOIN messages m ON m.id=r.id JOIN sessions s ON s.uid=m.session_uid WHERE r.rn=1 ORDER BY (r.you+r.asst=0),r.score,r.ts DESC,r.id DESC LIMIT ? OFFSET ?`
+		query = `WITH matched AS MATERIALIZED (SELECT m.id,m.session_id,m.ts,m.role,` + score + ` score ` + from + `), ranked AS (SELECT id,session_id,ts,role,score,count(*) OVER (PARTITION BY session_id) hits,sum(role='user') OVER (PARTITION BY session_id) you,sum(role='asst') OVER (PARTITION BY session_id) asst,sum(role='tool') OVER (PARTITION BY session_id) tool,row_number() OVER (PARTITION BY session_id ORDER BY (role='tool'),score,ts DESC,id DESC) rn FROM matched) SELECT s.uid,s.harness,s.project,m.ts,m.text,r.hits,m.idx,r.you,r.asst,r.tool FROM ranked r JOIN messages m ON m.id=r.id JOIN sessions s ON s.session_id=m.session_id WHERE r.rn=1 ORDER BY (r.you+r.asst=0),r.score,r.ts DESC,r.id DESC LIMIT ? OFFSET ?`
 	}
 	if offset > p.Total {
 		return p, fmt.Errorf("cursor past end of results")
