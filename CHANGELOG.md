@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.12.0 - 2026-11-15
+
+### Changed
+- The index stores an integer session id in each message instead of repeating the session's text key. On a 400 MB index this made the file about 32 percent smaller and `kioku stats` about twice as fast. An existing index is converted in place on first run (a few seconds, no source is re-read), then runs VACUUM. The index moves to schema version 7; an older kioku cannot open a converted index and exits with `no such column: session_uid` without changing the file, so restart any kioku MCP server that was running during the upgrade.
+- Sessions whose first user message starts with `<!-- backpass:` are treated as automated, like review prompts: they are left out of search, `--sessions`, the TUI, totals and facets. `--include-automated` (MCP `include_automated`) brings them back; `show` still opens them. Existing sessions are classified again once on first run.
+- With no query, `--json`, `--sessions` and `--facets` pages are built from the session list instead of scanning every message, so they return in tens of milliseconds on a large index instead of one second or more.
+
 ## v0.11.0 - 2026-11-12
 
 ### Added
