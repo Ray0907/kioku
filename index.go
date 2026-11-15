@@ -520,7 +520,14 @@ func syncIndex(db *sql.DB, rebuild bool, progress func(int, int)) (syncStats, er
 		if _, e = tx.Exec("INSERT INTO messages_fts(messages_fts) VALUES('rebuild')"); e != nil {
 			return stats, e
 		}
-		if _, e = tx.Exec("UPDATE meta SET schema_version=6"); e != nil {
+	} else if schemaVersion < 7 {
+		// The automated rule changed; the stored messages are enough to apply it.
+		if e = classifyAutomated(tx); e != nil {
+			return stats, e
+		}
+	}
+	if schemaVersion < 7 {
+		if _, e = tx.Exec("UPDATE meta SET schema_version=7"); e != nil {
 			return stats, e
 		}
 	}

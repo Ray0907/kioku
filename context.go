@@ -117,10 +117,11 @@ func contextText(ctx context.Context, db *sql.DB, dir string, now time.Time, noR
 	return b.String(), nil
 }
 
-// automatedPrompt spots sessions another agent opened to review a change: they never say where
-// your own work stopped. ponytail: a prefix list, extend it when a new reviewer shows up.
+// automatedPrompt spots sessions another agent opened to review or audit work: they never say
+// where your own work stopped. ponytail: a prefix list, extend it when a new one shows up, and
+// raise the schema version so indexed sessions are classified again.
 func automatedPrompt(topic string) bool {
-	for _, p := range []string{"Review this change", "# Review Guidelines"} {
+	for _, p := range []string{"Review this change", "# Review Guidelines", "<!-- backpass:"} {
 		if strings.HasPrefix(topic, p) {
 			return true
 		}

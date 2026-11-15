@@ -87,7 +87,8 @@ const legacyMessages = `SELECT id,session_uid,idx,ts,role,text,self FROM message
 func checkIntegerIndex(t *testing.T, db *sql.DB) {
 	t.Helper()
 	var version, orphans, messages, docs int
-	if err := db.QueryRow(`SELECT schema_version FROM meta`).Scan(&version); err != nil || version != 6 {
+	if err := db.QueryRow(`SELECT schema_version FROM meta`).Scan(&version); err != nil || version != 6 && version != 7 {
+		// 6 after the layout conversion alone, 7 once a sync has classified the sessions.
 		t.Fatalf("version=%d err=%v", version, err)
 	}
 	if err := db.QueryRow(`SELECT count(*) FROM messages m LEFT JOIN sessions s ON s.session_id=m.session_id WHERE s.session_id IS NULL`).Scan(&orphans); err != nil || orphans != 0 {

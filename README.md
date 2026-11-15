@@ -108,7 +108,7 @@ Search: space means AND; `"black tea"` is an exact phrase; `-word` excludes; bar
 
 `--here` scopes search, `--sessions` and `stats` to the nearest ancestor with a `.git` file or directory, or the working directory when none exists; home and `/` are rejected. It combines with the other filters, and cursors must keep the same scope root. Both the given root and its resolved symlink path match session directories.
 
-Sessions started by an automated review prompt are hidden from search by default; `--include-automated` shows them. Kioku tool calls and their results are hidden from search by default; `--include-self` restores them for that run (including `--sessions`), without reindexing. User/assistant mentions remain searchable.
+Sessions started by an automated review or audit prompt are hidden from search by default; `--include-automated` shows them. Kioku tool calls and their results are hidden from search by default; `--include-self` restores them for that run (including `--sessions`), without reindexing. User/assistant mentions remain searchable.
 
 ## For agents
 
