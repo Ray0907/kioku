@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.13.0 - 2026-11-19
+
+### Added
+- TUI moved to Bubble Tea v2 and Lip Gloss v2 (native terminal cursor for IME, bracketed paste, dark/light detection). New: session topics in the browse list and preview header, `O` outline, `ctrl+f` to jump to search from anywhere, a reading width capped at 84 cells with unfocused zones dimmed, a draggable title-bar splitter, and a one-cell hit-map rail with click-to-jump and drag-to-scrub.
+- TUI query box has a caret: `left`/`right` (`ctrl+b`/`ctrl+f`), `home`/`end` (`ctrl+a`/`ctrl+e`), `alt+left`/`alt+right` to jump a word (Latin or CJK), `delete` to delete forward. Typing and paste insert at the caret; `backspace`, `ctrl+w` and `ctrl+u` act before the caret. The terminal cursor follows the caret and the query scrolls to keep it visible.
+- TUI query history: `up` in an empty query recalls the previous query and `up`/`down` walk the history. It is saved to a `history` file next to the index (up to 100 queries, consecutive duplicates dropped).
+- TUI: an empty result lists only the hints that apply (drop a word, remove quotes or a `-word`, `D`/`d` for the date range, `p` for the project scope, `tab` for all agents).
+- TUI: the session directory in the preview title is a clickable `file://` link in terminals that support OSC 8.
+
+### Changed
+- TUI: hit words use a curly underline in the hit colour instead of sharing the selection's colours. The light theme's muted and dim text and the dark theme's dim text were darkened or lightened to stay readable on the selected row.
+- TUI: while a new query runs, the previous results stay on screen, dimmed, and the selection stays on the same message (or session) when it is still listed.
+
 ## v0.12.0 - 2026-11-15
 
 ### Changed
