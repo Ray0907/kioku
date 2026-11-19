@@ -8,8 +8,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 func TestTerminalEditor(t *testing.T) {
@@ -175,12 +173,12 @@ func TestOpenKeyGUI(t *testing.T) {
 	t.Setenv("KIOKU_EDITOR", "zed")
 	dir := t.TempDir()
 	m := model{rows: []hit{{CWD: dir}}}
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+	updated, cmd := m.Update(keyRunes("o"))
 	if cmd != nil || !strings.HasSuffix(updated.(model).status, " opened "+dir+" in zed") {
 		t.Fatal("GUI open must start immediately and report success without a Tea command")
 	}
 	t.Setenv("KIOKU_EDITOR", "missing-editor")
-	updated, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+	updated, cmd = m.Update(keyRunes("o"))
 	if cmd != nil || !strings.Contains(updated.(model).status, "executable file not found") {
 		t.Fatal("GUI launch failure must report the error")
 	}
@@ -190,7 +188,7 @@ func TestOpenKeyTerminal(t *testing.T) {
 	fakeEditors(t, "nvim")
 	t.Setenv("KIOKU_EDITOR", "nvim")
 	m := model{rows: []hit{{CWD: t.TempDir()}}, status: "before"}
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'o'}})
+	updated, cmd := m.Update(keyRunes("o"))
 	if updated.(model).status != "before" || cmd == nil {
 		t.Fatal("terminal open must return a command and defer status until editor exit")
 	}

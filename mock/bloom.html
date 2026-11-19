@@ -1,0 +1,1372 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>kioku × bloom — UI/UX & Motion Mockup</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+:root{
+  --bg:#eef0f3;--fg:#1b1d22;--muted:#5d6270;--line:#d4d8df;--card:#f8f9fb;
+  --sans:"Noto Sans TC",system-ui,sans-serif;
+  --mono:"JetBrains Mono","Noto Sans TC",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;--bg:#111216;--fg:#e6e7eb;--muted:#9a9fac;--line:#2a2d35;--card:#171920;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;--bg:#111216;--fg:#e6e7eb;--muted:#9a9fac;--line:#2a2d35;--card:#171920;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{
+  background:var(--bg);color:var(--fg);font-family:var(--sans);
+  font-size:14.5px;line-height:1.55;padding:24px 16px 56px;margin:0;
+}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+
+/* Top bar */
+.top{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between}
+.top h1{margin:0;font-size:20px;display:flex;align-items:center;gap:8px;letter-spacing:-.01em}
+.top h1 .badge{
+  font-family:var(--mono);font-size:11.5px;font-weight:600;
+  padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted);
+}
+.top p{margin:2px 0 0;color:var(--muted);font-size:13px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--card)}
+.seg button{
+  font:inherit;font-size:12.5px;background:none;color:var(--muted);
+  border:0;padding:4px 11px;cursor:pointer;transition:background .12s,color .12s;
+}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg);font-weight:500}
+.seg button:focus-visible{outline:2px solid var(--fg);outline-offset:-2px}
+
+/* Trigger bar */
+.triggers{
+  display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+  padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);
+}
+.triggers .lbl{
+  font-size:12px;color:var(--muted);margin-right:4px;font-weight:500;
+}
+.trig{
+  display:inline-flex;align-items:center;gap:6px;
+  font-family:var(--sans);font-size:12.5px;color:var(--fg);
+  background:var(--bg);border:1px solid var(--line);border-radius:6px;
+  padding:4px 9px;cursor:pointer;transition:border-color .12s,transform .08s,background .12s;
+}
+.trig:hover{border-color:var(--fg)}
+.trig:active{transform:translateY(1px)}
+.trig kbd{
+  font-family:var(--mono);font-size:11px;font-weight:700;
+  padding:0 5px;border-radius:4px;background:var(--card);border:1px solid var(--line);color:var(--muted);
+}
+.trig.active{border-color:#2a64b0;color:#2a64b0}
+:root[data-theme="dark"] .trig.active{border-color:#7fb0ee;color:#7fb0ee}
+
+/* Terminal shell — faithful to ui.go light & dark palettes */
+.term{
+  --tbg:#ffffff;--tfg:#1f2328;
+  --hit:#b6322d;--muted:#606a74;--selbg:#d2e3f9;--hover:#f3f7fc;
+  --surf:#eef3f9;--acc:#2a64b0;--key:#e3eaf3;--border:#cfd8e3;
+  --pen-0:#fde89a;--pen-1:#bdfac8;--pen-2:#ffe0f2;
+  --claude:#8d5d1c;--codex:#147175;--pi:#3b723e;
+  --pulse:rgba(42,100,176,.28);
+  --dim:rgba(24,29,38,.42);
+  --shadow:0 12px 32px rgba(15,23,42,.18), 0 2px 6px rgba(15,23,42,.08);
+
+  background:var(--tbg);color:var(--tfg);
+  font-family:var(--mono);font-size:13px;line-height:1.68;
+  border-radius:10px;border:1px solid var(--line);
+  height:min(660px,82vh);min-height:520px;
+  display:flex;flex-direction:column;overflow:hidden;position:relative;
+  user-select:none;
+}
+.term.dark{
+  --tbg:#1c1d22;--tfg:#d8dce4;
+  --hit:#f6857a;--muted:#95a0ab;--selbg:#293647;--hover:#222833;
+  --surf:#232a35;--acc:#7fb0ee;--key:#303a49;--border:#343e4d;
+  --pen-0:#3c3207;--pen-1:#193b22;--pen-2:#492537;
+  --claude:#ddae6c;--codex:#76c7cc;--pi:#8fc990;
+  --pulse:rgba(127,176,238,.34);
+  --dim:rgba(6,8,12,.58);
+  --shadow:0 16px 40px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.35);
+}
+
+/* Reduced motion */
+.term.reduced *, .term.reduced *::before, .term.reduced *::after{
+  transition-duration:.01ms!important;
+  animation-duration:.01ms!important;
+}
+
+/* Header bar (surf) */
+.hdr{
+  background:var(--surf);
+  display:flex;align-items:center;gap:8px;
+  padding:5px 14px;min-height:32px;flex:0 0 auto;position:relative;z-index:4;
+}
+.hdr .brand{color:var(--muted);font-weight:700}
+.hdr .arrow{color:var(--muted)}
+.hdr .qwrap{flex:1;min-width:80px;display:flex;align-items:center;gap:4px}
+.hdr input{
+  width:100%;min-width:0;background:none;border:0;outline:0;
+  color:var(--tfg);font:inherit;font-weight:700;caret-color:var(--acc);
+}
+.hdr .meta{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.chip{
+  display:inline-flex;align-items:center;gap:5px;
+  font:inherit;font-size:12px;color:var(--muted);
+  background:transparent;border:1px solid transparent;border-radius:4px;
+  padding:0 6px;height:22px;cursor:pointer;
+  transition:background .12s,border-color .12s,color .12s;
+}
+.chip:hover{background:var(--key);color:var(--tfg)}
+.chip.on{background:var(--key);color:var(--tfg);border-color:var(--border)}
+.chip .dot{font-weight:700}
+.count{color:var(--muted);font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums;padding-left:4px}
+
+/* Shimmer effect for indexing (bloom fx.Shimmer) */
+.shimmer{
+  position:relative;display:inline-block;
+  background:linear-gradient(90deg, var(--muted) 0%, var(--muted) 35%, var(--acc) 50%, var(--muted) 65%, var(--muted) 100%);
+  background-size:220% 100%;
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:shimmer-sweep 1.15s linear infinite;
+}
+@keyframes shimmer-sweep{
+  0%{background-position:120% 0}
+  100%{background-position:-100% 0}
+}
+
+/* Highlights strip (optional row, animates height smoothly) */
+.pens-wrap{
+  overflow:hidden;flex:0 0 auto;
+  max-height:0;opacity:0;
+  transition:max-height .16s cubic-bezier(.22,1,.36,1), opacity .14s ease;
+}
+.pens-wrap.show{max-height:36px;opacity:1}
+.pens{
+  display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+  padding:4px 14px 2px;font-size:12.5px;
+}
+.pens .lbl{color:var(--muted);margin-right:2px}
+.pen{
+  display:inline-flex;align-items:center;gap:5px;
+  font:inherit;color:var(--tfg);border:0;border-radius:3px;
+  padding:0 6px;cursor:pointer;line-height:1.5;
+  transition:transform .12s ease, opacity .12s ease;
+  animation:pen-in .16s cubic-bezier(.22,1,.36,1);
+}
+@keyframes pen-in{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+.pen .x{opacity:.35;font-size:11px;transition:opacity .1s}
+.pen:hover .x{opacity:1}
+.pen:hover{filter:brightness(.96)}
+.term.dark .pen:hover{filter:brightness(1.12)}
+
+/* List pane — bloom Reflow (.Animate() Spring) */
+.list-pane{
+  flex:0 0 auto;
+  overflow-y:auto;overflow-x:hidden;
+  padding:6px 0;
+  transition:height .18s cubic-bezier(.2, .95, .3, 1), opacity .15s ease, padding .18s ease;
+  will-change:height;
+}
+.list-pane.dragging{transition:none!important}
+.term.full .list-pane{
+  height:0!important;padding-top:0;padding-bottom:0;opacity:0;overflow:hidden;
+}
+
+.row{
+  display:grid;
+  grid-template-columns:22px 20px 1fr 11ch 5ch;
+  align-items:baseline;
+  padding:1px 14px 1px 10px;
+  cursor:pointer;white-space:nowrap;
+  transition:background .08s ease;
+}
+.row:hover:not(.band){background:var(--hover)}
+.row.band{background:var(--selbg)}
+.row .cur{text-align:center;font-weight:700;color:var(--tfg)}
+.row.band .cur{color:var(--acc)}
+.row .ag{text-align:center;font-weight:700}
+.row .sn{overflow:hidden;text-overflow:ellipsis;padding-right:12px}
+.row .pj{color:var(--muted);overflow:hidden;text-overflow:ellipsis;padding-right:8px}
+.row .tm{color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.row.sel .pj,.row.sel .tm{color:var(--tfg);font-weight:700}
+.empty{padding:8px 16px;color:var(--muted)}
+
+.hh{color:var(--hit);font-weight:700;text-decoration:underline;text-underline-offset:3px}
+mark{color:inherit;border-radius:2px;padding:0 1px}
+mark.p0{background:var(--pen-0)}mark.p1{background:var(--pen-1)}mark.p2{background:var(--pen-2)}
+
+/* Draggable Splitter = Transcript title bar (surf) */
+.splitter{
+  background:var(--surf);
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:4px 14px;flex:0 0 auto;position:relative;
+  cursor:row-resize;
+  border-top:1px solid transparent;border-bottom:1px solid transparent;
+  transition:border-color .12s, background .12s;
+}
+.splitter:hover, .splitter.active{border-top-color:var(--acc)}
+.splitter .grip{
+  position:absolute;left:50%;top:0;transform:translate(-50%,-1px);
+  width:40px;height:3px;border-radius:2px;background:var(--acc);
+  opacity:0;transition:opacity .12s;pointer-events:none;
+}
+.splitter:hover .grip, .splitter.active .grip{opacity:.75}
+.term.full .splitter{cursor:default}
+.term.full .splitter:hover{border-top-color:transparent}
+.term.full .splitter .grip{display:none}
+.splitter .left{display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;white-space:nowrap}
+.splitter .proj{font-weight:700}
+.splitter .sub{color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+.splitter .right{color:var(--muted);font-size:12px;white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:8px}
+.splitter .full-pill{
+  font-size:11px;padding:0 6px;border-radius:3px;
+  background:var(--key);color:var(--acc);font-weight:700;cursor:pointer;
+}
+
+/* Transcript pane + Hit-Map Scrollbar (bloom Viewport + ScrollbarOf) */
+.page-shell{
+  flex:1;min-height:0;display:flex;position:relative;overflow:hidden;
+}
+.page{
+  flex:1;min-width:0;overflow-y:auto;padding:8px 14px 14px 0;
+  scrollbar-width:none;
+}
+.page::-webkit-scrollbar{display:none}
+
+.hitmap{
+  width:14px;flex:0 0 14px;position:relative;
+  border-left:1px solid transparent;
+  background:transparent;cursor:pointer;
+  transition:background .12s, border-color .12s;
+}
+.hitmap:hover{background:var(--surf);border-left-color:var(--border)}
+.hitmap .thumb{
+  position:absolute;left:3px;right:3px;min-height:20px;
+  border-radius:3px;background:var(--muted);opacity:.38;
+  transition:opacity .12s, background .12s;
+  pointer-events:none;
+}
+.hitmap:hover .thumb, .hitmap.dragging .thumb{opacity:.65;background:var(--acc)}
+.hitmap .tick{
+  position:absolute;left:2px;right:2px;height:3px;border-radius:1px;
+  background:var(--hit);cursor:pointer;
+  transition:transform .1s;
+}
+.hitmap .tick:hover{transform:scaleY(1.8)}
+.hitmap .tick.cur{background:var(--acc);height:4px}
+
+/* Transcript lines */
+.fold-row{
+  padding:3px 0 6px 11ch;color:var(--muted);font-size:12.5px;
+  cursor:pointer;transition:color .12s;
+}
+.fold-row:hover{color:var(--acc)}
+
+.msg{
+  display:grid;grid-template-columns:4ch 6ch 2ch 6ch 1fr;
+  padding:2px 10px 2px 0;margin-bottom:8px;
+  border-radius:0;position:relative;
+  transition:background .12s ease;
+}
+.msg .star{text-align:right;padding-right:1ch;font-weight:700}
+.msg.hit .star{color:var(--hit)}
+.msg.cur .star{color:var(--tfg)}
+.msg .ts{color:var(--muted);font-variant-numeric:tabular-nums}
+.msg .rule{color:var(--muted);text-align:center}
+.msg.user .rule{color:var(--acc);font-weight:700}
+.msg .role{color:var(--muted)}
+.msg.user .role{color:var(--tfg);font-weight:700}
+.msg.context .role,.msg.context .body{color:var(--muted)}
+.msg.cur{background:var(--selbg)}
+.msg.cur .ts,.msg.cur .role{color:var(--tfg);font-weight:700}
+.msg .body{white-space:pre-wrap;overflow-wrap:anywhere;user-select:text}
+
+/* Hit jump pulse animation */
+.msg.pulse{animation:hit-pulse .34s ease-out}
+@keyframes hit-pulse{
+  0%{background:var(--pulse)}
+  100%{background:var(--selbg)}
+}
+
+/* Tool folding (click individual tool message to expand) */
+.tool-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  color:var(--muted);cursor:pointer;border-radius:3px;
+  padding:0 4px;margin-left:-4px;transition:background .1s,color .1s;
+}
+.tool-btn:hover{background:var(--surf);color:var(--tfg)}
+.tool-btn .more{color:var(--acc);font-size:12px}
+.tool-expanded{
+  margin-top:4px;padding:6px 10px;border-left:2px solid var(--border);
+  background:var(--surf);color:var(--muted);font-size:12px;line-height:1.5;
+  animation:unfold .14s ease-out;
+}
+@keyframes unfold{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
+
+/* Footer keycaps */
+.ft{
+  padding:5px 14px 6px;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  border-top:1px solid var(--surf);font-size:12px;color:var(--muted);
+}
+.ft .keys{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
+.kitem{display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+.kitem:hover kbd{color:var(--acc)}
+.ft kbd{
+  font:inherit;font-weight:700;color:var(--tfg);
+  background:var(--key);padding:0 6px;border-radius:3px;
+}
+
+/* Anchored Popover (bloom AnchorTo) */
+.popover{
+  position:absolute;z-index:20;
+  background:var(--tbg);border:1px solid var(--border);border-radius:6px;
+  box-shadow:var(--shadow);padding:8px 10px;min-width:230px;max-width:340px;
+  animation:pop-in .14s cubic-bezier(.22,1,.36,1);
+}
+@keyframes pop-in{
+  from{opacity:0;transform:translateY(-5px) scale(.98)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+.popover .ptitle{
+  font-size:11.5px;color:var(--muted);font-weight:700;
+  display:flex;justify-content:space-between;align-items:center;
+  padding-bottom:6px;margin-bottom:6px;border-bottom:1px solid var(--surf);
+}
+.pop-opt{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  width:100%;font:inherit;font-size:12.5px;text-align:left;
+  background:none;border:0;color:var(--tfg);padding:4px 8px;border-radius:4px;cursor:pointer;
+}
+.pop-opt:hover,.pop-opt.sel{background:var(--selbg)}
+.pop-opt .cnt{color:var(--muted);font-size:11.5px;font-variant-numeric:tabular-nums}
+.pop-presets{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+.pop-presets button{
+  font:inherit;font-size:12px;color:var(--tfg);background:var(--surf);
+  border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;
+}
+.pop-presets button:hover,.pop-presets button.on{border-color:var(--acc);color:var(--acc)}
+.pop-input-row{display:flex;gap:6px;align-items:center}
+.pop-input-row input{
+  flex:1;min-width:0;font:inherit;font-size:12.5px;color:var(--tfg);
+  background:var(--surf);border:1px solid var(--border);border-radius:4px;
+  padding:3px 7px;outline:0;
+}
+.pop-input-row input:focus{border-color:var(--acc)}
+.pop-err{color:var(--hit);font-size:11.5px;margin-top:5px;min-height:16px}
+.pop-hint{color:var(--muted);font-size:11px;margin-top:5px}
+
+/* Shake effect (bloom fx.Shake) */
+.shake{animation:fx-shake .22s ease-in-out!important}
+@keyframes fx-shake{
+  0%,100%{transform:translateX(0)}
+  20%{transform:translateX(-6px)}
+  40%{transform:translateX(6px)}
+  60%{transform:translateX(-4px)}
+  80%{transform:translateX(4px)}
+}
+
+/* Modal Overlay + Backdrop Dim (bloom Overlay + Layer.Modal + fx.Dim) */
+.backdrop{
+  position:absolute;inset:0;z-index:30;
+  background:var(--dim);
+  display:flex;align-items:center;justify-content:center;padding:20px;
+  animation:fade-in .14s ease-out;
+}
+@keyframes fade-in{from{opacity:0}to{opacity:1}}
+.modal{
+  background:var(--tbg);border:1px solid var(--acc);border-radius:8px;
+  box-shadow:var(--shadow);width:min(680px,92%);max-height:86%;overflow-y:auto;
+  padding:14px 18px;
+  animation:modal-in .16s cubic-bezier(.22,1,.36,1);
+}
+@keyframes modal-in{
+  from{opacity:0;transform:translateY(8px) scale(.98)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+.modal-hd{
+  display:flex;justify-content:space-between;align-items:center;
+  padding-bottom:8px;margin-bottom:10px;border-bottom:1px solid var(--surf);
+}
+.modal-hd b{font-size:13.5px}
+.modal-hd span{color:var(--muted);font-size:12px}
+.help-grid{
+  display:grid;grid-template-columns:max-content 1fr max-content 1fr;
+  gap:5px 14px;font-size:12.5px;align-items:baseline;
+}
+.help-grid kbd{
+  font:inherit;font-weight:700;color:var(--acc);
+  background:var(--surf);padding:0 6px;border-radius:3px;text-align:center;
+}
+.help-grid span{color:var(--muted)}
+@media (max-width:680px){.help-grid{grid-template-columns:max-content 1fr}}
+
+/* Corner Toast Stack (bloom Layer + Presence + fx.Slide) */
+.toasts{
+  position:absolute;right:16px;bottom:38px;z-index:25;
+  display:flex;flex-direction:column;gap:6px;align-items:flex-end;
+  pointer-events:none;
+}
+.toast{
+  pointer-events:auto;
+  background:var(--tbg);border:1px solid var(--border);
+  border-left:3px solid var(--acc);
+  border-radius:6px;box-shadow:var(--shadow);
+  padding:6px 11px;font-size:12.5px;max-width:420px;
+  position:relative;overflow:hidden;
+  animation:toast-in .16s cubic-bezier(.22,1,.36,1);
+}
+.toast.err{border-left-color:var(--hit)}
+.toast.out{animation:toast-out .16s ease-in forwards}
+@keyframes toast-in{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:translateX(0)}}
+@keyframes toast-out{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(10px)}}
+.toast .tbar{
+  position:absolute;left:0;bottom:0;height:2px;width:100%;
+  background:var(--acc);opacity:.45;transform-origin:left;
+  animation:tbar var(--dur,2200ms) linear forwards;
+}
+.toast.err .tbar{background:var(--hit)}
+@keyframes tbar{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+.toast .tmeta{color:var(--muted);font-size:11.5px;margin-top:1px}
+
+/* Concept legend cards below */
+.legend{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+  gap:10px;
+}
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:8px;
+  padding:11px 13px;font-size:13px;
+}
+.card h3{
+  margin:0 0 4px;font-size:13.5px;display:flex;align-items:center;
+  justify-content:space-between;gap:8px;
+}
+.card .tag{
+  font-family:var(--mono);font-size:11px;font-weight:600;
+  color:var(--muted);background:var(--bg);border:1px solid var(--line);
+  padding:1px 6px;border-radius:4px;white-space:nowrap;
+}
+.card p{margin:0;color:var(--muted);font-size:12.5px;line-height:1.5}
+.card .fit{
+  margin-top:6px;font-family:var(--mono);font-size:11px;color:var(--fg);opacity:.82;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>kioku × bloom <span class="badge">UI/UX &amp; Motion Prototype</span></h1>
+      <p>沿用 kioku 實際配色與字元語言，套用 <code>lrstanley/bloom</code> 的 Reflow、Overlay、Popover、Toast、Hit-Map 與節點互動概念</p>
+    </div>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Motion">
+        <button id="m-on" aria-pressed="true">Motion On</button>
+        <button id="m-off" aria-pressed="false">Reduced</button>
+      </div>
+      <div class="seg" role="group" aria-label="Terminal background">
+        <button id="tl" aria-pressed="false">Light</button>
+        <button id="td" aria-pressed="false">Dark</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- One-click demo triggers -->
+  <div class="triggers">
+    <span class="lbl">試玩每個 bloom 概念：</span>
+    <button class="trig" id="btn-full"><kbd>v</kbd> Reflow 全螢幕</button>
+    <button class="trig" id="btn-help"><kbd>?</kbd> Dim Modal</button>
+    <button class="trig" id="btn-agent"><kbd>tab</kbd> Agent Popover</button>
+    <button class="trig" id="btn-range"><kbd>d</kbd> Range Popover</button>
+    <button class="trig" id="btn-hl"><kbd>h</kbd> Highlight</button>
+    <button class="trig" id="btn-jump"><kbd>n</kbd> Hit Pulse</button>
+    <button class="trig" id="btn-toast"><kbd>y</kbd> Corner Toast</button>
+    <button class="trig" id="btn-sync"><kbd>r</kbd> Sync Shimmer</button>
+    <button class="trig" id="btn-err"><kbd>!</kbd> Shake 錯誤</button>
+  </div>
+
+  <!-- Faithful TUI container -->
+  <div class="term" id="term" tabindex="-1">
+    <!-- Header bar -->
+    <div class="hdr" id="hdr">
+      <span class="brand">kioku</span>
+      <span class="arrow">▸</span>
+      <div class="qwrap">
+        <input id="q" value="紅茶" autocomplete="off" spellcheck="false" aria-label="Search">
+      </div>
+      <div class="meta">
+        <button class="chip" id="chip-agent" title="Filter agent (Tab / Click)">
+          <span class="dot" id="chip-agent-dot">◎</span>
+          <span id="chip-agent-lbl">all</span>
+        </button>
+        <button class="chip" id="chip-range" title="Date range (d / Click)">
+          <span id="chip-range-lbl">any time</span>
+        </button>
+        <span class="count" id="count"></span>
+      </div>
+    </div>
+
+    <!-- Optional Highlights strip (smooth collapse/expand) -->
+    <div class="pens-wrap" id="pens-wrap">
+      <div class="pens" id="pens"></div>
+    </div>
+
+    <!-- Result list pane (Reflow animated height) -->
+    <div class="list-pane" id="list-pane"></div>
+
+    <!-- Draggable Splitter = Transcript Title Bar -->
+    <div class="splitter" id="splitter" title="上下拖拉調整比例 · 雙擊重設預設 38%">
+      <div class="grip"></div>
+      <div class="left" id="sp-left"></div>
+      <div class="right" id="sp-right"></div>
+    </div>
+
+    <!-- Transcript viewport + Hit-Map Scrollbar -->
+    <div class="page-shell">
+      <div class="page" id="page"></div>
+      <div class="hitmap" id="hitmap" title="拖拉捲動 · 紅點代表命中位置，點擊直達">
+        <div class="thumb" id="thumb"></div>
+      </div>
+    </div>
+
+    <!-- Footer keycaps -->
+    <div class="ft" id="ft"></div>
+
+    <!-- Anchored Popover Layer -->
+    <div class="popover" id="popover" hidden></div>
+
+    <!-- Corner Toast Layer -->
+    <div class="toasts" id="toasts"></div>
+
+    <!-- Modal Overlay + Backdrop Dim -->
+    <div class="backdrop" id="backdrop" hidden>
+      <div class="modal" id="modal" role="dialog" aria-label="Keyboard shortcuts">
+        <div class="modal-hd">
+          <b>kioku · Keyboard &amp; Mouse</b>
+          <span>esc 或 ? 關閉 · 點背景關閉</span>
+        </div>
+        <div class="help-grid" id="help-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Design concept mapping cards -->
+  <div class="legend">
+    <div class="card">
+      <h3>平滑折疊 Reflow <span class="tag">.Animate(Spring)</span></h3>
+      <p>按 <code>v</code> 展開/收起全螢幕 transcript，不再瞬間跳動；支援上方標題列直接上下拖拉調整列表高度（雙擊重設 38%）。</p>
+      <div class="fit">v1 手寫 120ms 插值即可 · v2 bloom 原生一行 .Animate()</div>
+    </div>
+    <div class="card">
+      <h3>壓暗浮層 Modal <span class="tag">Overlay + fx.Dim</span></h3>
+      <p>按 <code>?</code> 不清掉 transcript，改以壓暗背景 + 浮動卡片呈現快捷鍵，關閉後閱讀脈絡零中斷。</p>
+      <div class="fit">v1 / v2 皆適合 · 極低干擾</div>
+    </div>
+    <div class="card">
+      <h3>錨定式 Popover <span class="tag">AnchorTo + fx.Shake</span></h3>
+      <p>點右上 <code>all</code> 或 <code>any time</code>（或按 <code>tab</code>/<code>d</code>/<code>h</code>）就地展開小選單。輸入錯誤日期（如 <code>foo</code>）觸發微震動回饋。</p>
+      <div class="fit">v2 bloom 強項（自動防溢出定位）</div>
+    </div>
+    <div class="card">
+      <h3>零跳動 Toast + Shimmer <span class="tag">Presence + fx.Shimmer</span></h3>
+      <p><code>y</code> 複製、<code>o</code> 開啟、<code>r</code> 同步不再擠壓底部行高；同步中僅在右上角跑低調掃光，完成後滑出短暫通知。</p>
+      <div class="fit">v1 / v2 皆可快速落地</div>
+    </div>
+    <div class="card">
+      <h3>Hit-Map 捲軸 + 跳轉脈衝 <span class="tag">ScrollbarOf + Pulse</span></h3>
+      <p>右側捲軸標記整份對話的所有命中 <code>✱</code> 位置（點紅點直達）；按 <code>n</code>/<code>N</code> 落地時以淡色脈衝引導視線。</p>
+      <div class="fit">最貼合長對話搜尋閱讀痛點</div>
+    </div>
+    <div class="card">
+      <h3>節點級滑鼠互動 <span class="tag">bloom/on</span></h3>
+      <p>結果列 Hover 底色、雙擊直接 Resume；Highlight 標籤 Hover 顯示 <code>×</code>；點單一折疊 Tool Output 就地展開不必全域 <code>t</code>。</p>
+      <div class="fit">取代 ui.go 脆弱的手算 Y/X 座標</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const AGENTS = {
+  all:    { mark: "◎", label: "all",    color: "var(--muted)" },
+  claude: { mark: "✻", label: "claude", color: "var(--claude)" },
+  codex:  { mark: "◇", label: "codex",  color: "var(--codex)" },
+  pi:     { mark: "π", label: "pi",     color: "var(--pi)" },
+};
+
+const S = [
+  {
+    h:"claude", id:"a1b2c3d4", proj:"fts5-cjk", cwd:"~/code/fts5-cjk", date:"2026-11-19", daysAgo:0, age:"2h",
+    m:[
+      ["14:02","user","把 README 的例子換成中性事實，不要出現人名。"],
+      ["14:03","asst","已改為「日月潭紅茶產於南投縣魚池鄉」。MATCH '魚池' 會命中，但 '南投魚池' 不會，因為 bareword 是連續片語。"],
+      ["14:05","tool","make test · ok 42/42", "ok  github.com/Ray0907/fts5-cjk/cjk  0.118s\n--- PASS: TestBigramPhrase (0.01s)\n--- PASS: TestMixedLatinCJK (0.02s)\n--- PASS: TestUnigramFallback (0.03s)\nPASS  42/42 tests passed in 118ms"],
+      ["14:11","user","如果使用者只輸入單字「茶」呢？"],
+      ["14:12","asst","開啟 unigram 1 選項後單字也會建索引；「紅茶」跟「綠茶」都能被單字「茶」命中，索引體積大約增加 70%。"],
+      ["15:40","user","可以幫我確認一下 snippet 高亮在全形字元上有沒有偏移嗎？"],
+      ["15:42","asst","確認過 UTF-8 byte offset 轉 rune index 後，紅茶與英文混排的底線標記都對齊在正確字元上。"],
+      ["15:44","tool","go test -run TestCJKHighlight ./... · ok", "=== RUN   TestCJKHighlight/taiwan_black_tea\n=== RUN   TestCJKHighlight/mixed_width\n--- PASS: TestCJKHighlight (0.00s)\nPASS"],
+      ["16:50","user","再補一個測試案例：搜尋「紅茶」同時排除「綠茶」"],
+      ["16:51","asst","已新增 `-綠茶` 的排除查詢測試，只回傳包含紅茶且不含綠茶的訊息，BM25 排序不受影響。"],
+    ]
+  },
+  {
+    h:"codex", id:"019a3c2e", proj:"search-api", cwd:"~/code/search-api", date:"2026-11-16", daysAgo:3, age:"3d",
+    m:[
+      ["09:12","user","_bulk 寫入太慢了，47k 筆文件要跑十分鐘"],
+      ["09:20","asst","改成 external-content FTS5 table 搭配 trigger，並把每個 batch 包進單一 transaction，寫入時間降到 6.9 秒。"],
+      ["13:05","user","補一筆中文跟英文對照的測試資料"],
+      ["13:06","asst","測試資料已加入：魚池鄉 紅茶，外加一筆 English black tea row 方便比對 BM25 分數。"],
+      ["13:08","tool","go test -bench=BenchmarkIndex ./...", "BenchmarkIndex47k-10   1   6891420112 ns/op\nPASS  ok  search-api  7.04s"],
+    ]
+  },
+  {
+    h:"pi", id:"2026-11-12_8c1d", proj:"kioku", cwd:"~/code/kioku", date:"2026-11-12", daysAgo:7, age:"1w",
+    m:[
+      ["21:30","user","我想在 TUI 裡保留閱讀優先的感覺，同時參考 bloom 做微動畫"],
+      ["21:31","asst","建議只做高回饋、零輸入延遲的動態：v 鍵折疊用 150ms spring reflow，Help 用 Dim Modal，複製改用角落 Toast。"],
+      ["21:33","tool","go test ./... · ok kioku 0.412s", "ok  github.com/Ray0907/kioku  0.412s\nAll 89 golden & UI tests passed."],
+      ["21:40","user","如果搜尋「紅茶」跳到下一則命中，怎麼讓眼睛更好跟？"],
+      ["21:41","asst","n/N 跳轉落地時加一個 280ms 的背景脈衝，並在右側捲軸畫出所有命中位置紅點（Hit-Map）。"],
+    ]
+  },
+  {
+    h:"claude", id:"7be210aa", proj:"git-store", cwd:"~/code/git-store", date:"2026-11-14", daysAgo:5, age:"5d",
+    m:[
+      ["10:02","user","Compaction 完成後 WAL 應該怎麼截斷比較安全？"],
+      ["10:04","asst","先寫出新 snapshot，確認 S3 PUT 成功後再推進 low-water mark。順序顛倒會掉資料。"],
+      ["15:10","user","ログの出力も日本語で確認したい（例：紅茶の在庫）"],
+      ["15:12","asst","ログは UTF-8 のまま出力されます。test.sh に「紅茶の在庫」を含む日本語ケースを追加しました。"],
+    ]
+  },
+  {
+    h:"codex", id:"019a1f07", proj:"tracer", cwd:"~/code/tracer", date:"2026-10-28", daysAgo:22, age:"3w",
+    m:[
+      ["11:00","user","Context 太長了，需要幫每段預覽設一個 token budget"],
+      ["11:02","asst","每段 trace 預覽改為 4k token budget；超長訊息保留第一行，並由索引標註省略了幾行。"],
+    ]
+  },
+];
+
+const RES = {
+  claude: s => `claude --resume ${s.id}`,
+  codex:  s => `codex resume ${s.id}`,
+  pi:     s => `pi --session ${s.id}`,
+};
+
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const reE = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const CJK = /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/;
+
+let state = {
+  focus: "list", // "q" | "list"
+  harness: "all",
+  rangeDays: null, // null | 1 | 7 | 30
+  rangeLabel: "",
+  rows: [],
+  sel: 0,
+  cursor: null,
+  full: false,
+  help: false,
+  popover: null, // null | "agent" | "range" | "highlight"
+  pens: [{ w: "unigram", c: 0 }],
+  openTools: new Set(),
+  splitRatio: 0.36,
+  syncing: false,
+  fresh: 0,
+  pulseKey: null,
+};
+
+function parseQuery(q){
+  const pos=[], neg=[];
+  for(const m of q.matchAll(/(-?)"([^"]+)"|(-?)(\S+)/g)){
+    let t = (m[2] ?? m[4]).toLowerCase();
+    const dash = (m[1] || m[3]) === "-";
+    if(dash && t.startsWith("-")) t = "-" + t;
+    (dash && !t.startsWith("-") ? neg : pos).push(t.replace(/^-+/,""));
+  }
+  if(!pos.length) neg.length = 0;
+  return { pos, neg };
+}
+function spans(text, w){
+  const out = [];
+  if(!w) return out;
+  const re = CJK.test(w[0])
+    ? new RegExp(reE(w), "gi")
+    : new RegExp("(?<![\\p{L}\\p{N}])" + reE(w), "giu");
+  for(const m of text.matchAll(re)) out.push([m.index, m[0].length]);
+  return out;
+}
+const hasTerm = (text, w) => spans(text, w).length > 0;
+
+function paint(text, hits){
+  const marks = Array.from({length:text.length}, () => ({hit:false, pen:null}));
+  state.pens.forEach(p => spans(text, p.w).forEach(([i,n]) => { for(let k=i;k<i+n;k++) marks[k].pen = p.c; }));
+  hits.forEach(w => spans(text, w).forEach(([i,n]) => { for(let k=i;k<i+n;k++) marks[k].hit = true; }));
+  let out="", k=0;
+  while(k<text.length){
+    let j=k; const a=marks[k];
+    while(j<text.length && marks[j].hit===a.hit && marks[j].pen===a.pen) j++;
+    let seg = esc(text.slice(k,j));
+    if(a.hit) seg = `<span class="hh">${seg}</span>`;
+    if(a.pen !== null) seg = `<mark class="p${a.pen}">${seg}</mark>`;
+    out += seg; k = j;
+  }
+  return out;
+}
+
+function search(){
+  const {pos, neg} = parseQuery($("q").value);
+  const rows = [];
+  S.forEach((s, si) => {
+    if(state.harness !== "all" && s.h !== state.harness) return;
+    if(state.rangeDays !== null && s.daysAgo > state.rangeDays) return;
+    s.m.forEach((m, mi) => {
+      const t = m[2];
+      if(neg.some(w => hasTerm(t, w))) return;
+      if(pos.length && !pos.every(w => hasTerm(t, w))) return;
+      if(!pos.length && mi !== s.m.length - 1) return;
+      rows.push({si, mi});
+    });
+  });
+  state.rows = rows;
+  if(state.sel >= rows.length) state.sel = Math.max(0, rows.length - 1);
+  state.cursor = rows[state.sel] ? rows[state.sel].mi : null;
+  render();
+}
+
+function snippet(r, pos){
+  const text = S[r.si].m[r.mi][2].replace(/\n/g, " ");
+  const f = pos.length ? spans(text, pos[0])[0] : null;
+  const i = f ? f[0] : -1;
+  let start = i > 16 ? i - 16 : 0;
+  if(start && /[\p{L}\p{N}]/u.test(text[start-1]) && !CJK.test(text[start])){
+    const sp = text.slice(start, i).search(/\s/);
+    start = sp < 0 ? i : start + sp + 1;
+  }
+  return (start ? "…" : "") + text.slice(start);
+}
+
+function applyListHeight(){
+  const termH = $("term").clientHeight;
+  const target = Math.max(72, Math.round((termH - 96) * state.splitRatio));
+  $("list-pane").style.height = target + "px";
+}
+
+function render(){
+  const {pos} = parseQuery($("q").value);
+  $("term").classList.toggle("full", state.full);
+  $("btn-full").classList.toggle("active", state.full);
+  $("btn-help").classList.toggle("active", state.help);
+  applyListHeight();
+
+  // Header chips
+  const ag = AGENTS[state.harness];
+  $("chip-agent-dot").textContent = ag.mark;
+  $("chip-agent-dot").style.color = ag.color;
+  $("chip-agent-lbl").textContent = ag.label;
+  $("chip-agent").classList.toggle("on", state.harness !== "all");
+
+  $("chip-range-lbl").textContent = state.rangeLabel || "any time";
+  $("chip-range").classList.toggle("on", !!state.rangeLabel);
+
+  // Header count / shimmer
+  if(state.syncing){
+    $("count").innerHTML = `<span class="shimmer">indexing 18/48…</span>`;
+  } else {
+    const sessCount = new Set(state.rows.map(r => r.si)).size;
+    let txt = pos.length
+      ? `${state.rows.length} messages · ${sessCount} sessions`
+      : `${state.rows.length} recent sessions`;
+    if(state.fresh > 0) txt += ` · +${state.fresh} new`;
+    $("count").textContent = txt;
+  }
+
+  // Highlights strip
+  $("pens-wrap").classList.toggle("show", state.pens.length > 0);
+  $("pens").innerHTML = `<span class="lbl">highlights</span>` + state.pens.map((p, i) =>
+    `<button class="pen" style="background:var(--pen-${p.c})" data-pen="${i}" title="點擊移除">${esc(p.w)}<span class="x">×</span></button>`
+  ).join("");
+
+  // Result list
+  if(!state.rows.length){
+    $("list-pane").innerHTML = `<div class="empty">${
+      state.rangeLabel
+        ? "No message in this date range. Press D or click range chip to clear."
+        : "No message contains all of these words. Drop a word or remove quotes."
+    }</div>`;
+  } else {
+    $("list-pane").innerHTML = state.rows.map((r, i) => {
+      const s = S[r.si];
+      const selected = i === state.sel;
+      const band = selected && state.focus !== "q";
+      const cur = selected ? (band ? "▎" : "›") : "";
+      const sn = snippet(r, pos);
+      return `<div class="row ${selected?"sel":""} ${band?"band":""}" data-i="${i}">
+        <span class="cur">${cur}</span>
+        <span class="ag" style="color:${AGENTS[s.h].color}">${AGENTS[s.h].mark}</span>
+        <span class="sn">${paint(sn, pos)}</span>
+        <span class="pj">${esc(s.proj)}</span>
+        <span class="tm">${s.age}</span>
+      </div>`;
+    }).join("");
+    document.querySelector(".row.sel")?.scrollIntoView({block:"nearest"});
+  }
+
+  renderPage(pos);
+  renderFooter();
+  renderHelp();
+  renderPopover();
+}
+
+function renderPage(pos){
+  const r = state.rows[state.sel];
+  if(!r){
+    $("sp-left").innerHTML = `<span class="sub">No session selected</span>`;
+    $("sp-right").innerHTML = "";
+    $("page").innerHTML = "";
+    renderHitmap([], 0);
+    return;
+  }
+  const s = S[r.si];
+  if(state.cursor === null) state.cursor = r.mi;
+  const isHit = i => pos.length && pos.every(w => hasTerm(s.m[i][2], w));
+  const hitIndices = s.m.map((_, i) => i).filter(isHit);
+
+  // Splitter title bar
+  $("sp-left").innerHTML =
+    `<span style="color:${AGENTS[s.h].color};font-weight:700">${AGENTS[s.h].mark}</span>` +
+    `<span class="proj">${esc(s.proj)}</span>` +
+    `<span class="sub">${s.h} · ${s.date} · ${esc(s.cwd)}</span>`;
+  const hitText = pos.length ? ` · ${hitIndices.length} ${hitIndices.length===1?"hit":"hits"} here` : "";
+  $("sp-right").innerHTML =
+    `<span>result ${state.sel+1} of ${state.rows.length}${hitText}</span>` +
+    (state.full ? `<span class="full-pill" id="exit-full" title="Exit full transcript (v)">FULL · v</span>` : "");
+
+  // Keep messages (fold context unless full)
+  const keep = new Set();
+  s.m.forEach((m, i) => {
+    if(state.full || !pos.length || isHit(i)){
+      keep.add(i);
+      if(!state.full && pos.length){
+        if(i > 0) keep.add(i - 1);
+        if(i + 1 < s.m.length) keep.add(i + 1);
+        for(let j = i; j >= 0; j--){ if(s.m[j][1] === "user"){ keep.add(j); break; } }
+      }
+    }
+  });
+
+  let html = "", foldedCount = 0;
+  const visibleMap = [];
+  const foldLine = n => `<div class="fold-row" data-unfold="1">⋯ ${n} hidden · 點擊或按 v 展開完整對話</div>`;
+
+  s.m.forEach((m, i) => {
+    if(!keep.has(i)){ foldedCount++; return; }
+    if(foldedCount > 0){ html += foldLine(foldedCount); foldedCount = 0; }
+    const hit = isHit(i);
+    const cur = i === state.cursor;
+    const context = !state.full && pos.length && !hit;
+    const role = m[1];
+    const who = role === "user" ? "you" : role;
+    const star = cur ? "›" : (hit ? "✱" : "");
+    const rule = role === "user" ? "┃" : "│";
+    const key = `${r.si}:${i}`;
+    const pulsing = state.pulseKey === key;
+
+    let bodyHtml = "";
+    if(role === "tool" && m[3]){
+      const open = state.openTools.has(key);
+      const lines = m[3].split("\n").length;
+      bodyHtml = `<span class="tool-btn" data-tool="${key}">${paint(m[2], pos)} <span class="more">${open ? "▾ collapse" : `▸ +${lines} lines`}</span></span>`
+        + (open ? `<div class="tool-expanded">${esc(m[3])}</div>` : "");
+    } else {
+      bodyHtml = paint(m[2], pos);
+    }
+
+    visibleMap.push({ mi: i, hit, cur });
+    html += `<div class="msg ${role} ${hit?"hit":""} ${cur?"cur":""} ${context?"context":""} ${pulsing?"pulse":""}" data-mi="${i}">
+      <span class="star">${star}</span>
+      <span class="ts">${m[0]}</span>
+      <span class="rule">${rule}</span>
+      <span class="role">${who}</span>
+      <div class="body">${bodyHtml}</div>
+    </div>`;
+  });
+  if(foldedCount > 0) html += foldLine(foldedCount);
+
+  $("page").innerHTML = html;
+  state.pulseKey = null;
+
+  const curEl = $("page").querySelector(".msg.cur");
+  if(curEl) curEl.scrollIntoView({block:"nearest", behavior: $("term").classList.contains("reduced") ? "auto" : "smooth"});
+
+  requestAnimationFrame(() => renderHitmap(visibleMap, s.m.length));
+}
+
+function renderHitmap(visibleMap){
+  const map = $("hitmap");
+  map.querySelectorAll(".tick").forEach(el => el.remove());
+  const page = $("page");
+  const sh = Math.max(1, page.scrollHeight);
+  const ch = page.clientHeight;
+
+  // Position hit ticks proportionally to DOM element offsets
+  visibleMap.forEach(v => {
+    if(!v.hit && !v.cur) return;
+    const el = page.querySelector(`.msg[data-mi="${v.mi}"]`);
+    if(!el) return;
+    const pct = Math.min(96, Math.max(2, (el.offsetTop / sh) * 100));
+    const tick = document.createElement("div");
+    tick.className = "tick" + (v.cur ? " cur" : "");
+    tick.style.top = pct + "%";
+    tick.title = v.cur ? "目前焦點訊息" : "點擊跳到此命中訊息";
+    tick.addEventListener("click", e => {
+      e.stopPropagation();
+      const r = state.rows[state.sel];
+      if(!r) return;
+      state.cursor = v.mi;
+      state.pulseKey = `${r.si}:${v.mi}`;
+      render();
+    });
+    map.appendChild(tick);
+  });
+
+  updateThumb();
+}
+
+function updateThumb(){
+  const page = $("page");
+  const thumb = $("thumb");
+  const h = $("hitmap").clientHeight;
+  const sh = page.scrollHeight;
+  const ch = page.clientHeight;
+  if(sh <= ch + 2){
+    thumb.style.height = "100%";
+    thumb.style.top = "0px";
+    thumb.style.opacity = "0.14";
+    return;
+  }
+  const th = Math.max(22, (ch / sh) * h);
+  const top = (page.scrollTop / (sh - ch)) * (h - th);
+  thumb.style.height = th + "px";
+  thumb.style.top = top + "px";
+  thumb.style.opacity = "";
+}
+
+function renderFooter(){
+  const pairs = state.focus === "q"
+    ? [["enter","resume","resume"], ["↓","list","toList"], ["tab","agent","agent"], ["d","range","range"], ["?","help","help"]]
+    : [["enter","resume","resume"], ["n/N","next hit","jump"], ["v","full","full"], ["h","highlight","hl"], ["y","copy","copy"], ["r","sync","sync"], ["?","help","help"]];
+  $("ft").innerHTML = `<div class="keys">` + pairs.map(([k,l,act]) =>
+    `<span class="kitem" data-act="${act}"><kbd>${k}</kbd><span>${l}</span></span>`
+  ).join("") + `</div><span>drag bar to resize · double-click row to resume</span>`;
+}
+
+function renderHelp(){
+  $("backdrop").hidden = !state.help;
+  if(state.help && !$("help-grid").children.length){
+    const items = [
+      ["/", "聚焦搜尋列"], ["↓ / esc", "搜尋列切到結果列表"],
+      ["j / k", "上下切換搜尋結果"], ["n / N", "跳到上/下一則命中（含脈衝）"],
+      ["v", "Reflow 展開/收起全螢幕"], ["drag bar", "拖拉調整列表與對話比例"],
+      ["tab", "開啟 Agent 篩選 Popover"], ["d / D", "日期區間 Popover / 清除"],
+      ["h / H", "新增 / 清除螢光筆標記"], ["click tool", "單獨展開/折疊單則工具輸出"],
+      ["y", "複製 Resume 指令（Toast）"], ["r", "背景索引同步（Shimmer）"],
+      ["double-click", "雙擊結果列直接 Resume"], ["?", "開啟 / 關閉此浮層"],
+    ];
+    $("help-grid").innerHTML = items.map(([k,v]) => `<kbd>${k}</kbd><span>${v}</span>`).join("");
+  }
+}
+
+function renderPopover(){
+  const pop = $("popover");
+  if(!state.popover){ pop.hidden = true; return; }
+  pop.hidden = false;
+  const termRect = $("term").getBoundingClientRect();
+
+  if(state.popover === "agent"){
+    const anchor = $("chip-agent").getBoundingClientRect();
+    pop.style.top = (anchor.bottom - termRect.top + 6) + "px";
+    pop.style.right = Math.max(12, termRect.right - anchor.right) + "px";
+    pop.style.left = "auto";
+
+    const {pos, neg} = parseQuery($("q").value);
+    const counts = { all: 0, claude: 0, codex: 0, pi: 0 };
+    S.forEach(s => {
+      if(state.rangeDays !== null && s.daysAgo > state.rangeDays) return;
+      s.m.forEach((m, mi) => {
+        if(neg.some(w => hasTerm(m[2], w))) return;
+        if(pos.length && !pos.every(w => hasTerm(m[2], w))) return;
+        if(!pos.length && mi !== s.m.length - 1) return;
+        counts.all++; counts[s.h]++;
+      });
+    });
+
+    pop.innerHTML = `<div class="ptitle"><span>Filter by Agent</span><span>Tab / Click</span></div>` +
+      ["all","claude","codex","pi"].map(k => `
+        <button class="pop-opt ${state.harness===k?"sel":""}" data-pick-agent="${k}">
+          <span><span style="color:${AGENTS[k].color};font-weight:700">${AGENTS[k].mark}</span> ${AGENTS[k].label}</span>
+          <span class="cnt">${counts[k]}</span>
+        </button>`).join("");
+  } else if(state.popover === "range"){
+    const anchor = $("chip-range").getBoundingClientRect();
+    pop.style.top = (anchor.bottom - termRect.top + 6) + "px";
+    pop.style.right = Math.max(12, termRect.right - anchor.right) + "px";
+    pop.style.left = "auto";
+
+    pop.innerHTML = `
+      <div class="ptitle"><span>Date Range</span><span>AnchorTo</span></div>
+      <div class="pop-presets">
+        <button class="${state.rangeDays===1?"on":""}" data-days="1">24h</button>
+        <button class="${state.rangeDays===7?"on":""}" data-days="7">7d</button>
+        <button class="${state.rangeDays===30?"on":""}" data-days="30">30d</button>
+        <button class="${state.rangeDays===null?"on":""}" data-days="">All</button>
+      </div>
+      <div class="pop-input-row">
+        <input id="pop-range-in" placeholder="e.g. 7d or 2026-11-01..now" value="${esc(state.rangeLabel)}" autocomplete="off">
+      </div>
+      <div class="pop-err" id="pop-err"></div>
+      <div class="pop-hint">試著輸入無效字元（如 foo）按 Enter 體驗 fx.Shake</div>`;
+    setTimeout(() => $("pop-range-in")?.focus(), 10);
+  } else if(state.popover === "highlight"){
+    const anchor = $("hdr").getBoundingClientRect();
+    pop.style.top = (anchor.bottom - termRect.top + 6) + "px";
+    pop.style.left = "14px";
+    pop.style.right = "auto";
+    pop.innerHTML = `
+      <div class="ptitle"><span>Add Highlighter Pen</span><span>3 colors rotate</span></div>
+      <div class="pop-input-row">
+        <input id="pop-hl-in" placeholder="輸入想標記的詞，例如 BM25" autocomplete="off">
+      </div>
+      <div class="pop-hint">Enter 新增 · Esc 關閉 · 點標籤可移除</div>`;
+    setTimeout(() => $("pop-hl-in")?.focus(), 10);
+  }
+}
+
+/* Toast engine (bloom Layer + Presence + fx.Slide) */
+function showToast(text, { err=false, meta="", dur=2200 } = {}){
+  const el = document.createElement("div");
+  el.className = "toast" + (err ? " err shake" : "");
+  el.style.setProperty("--dur", dur + "ms");
+  el.innerHTML = `<div>${esc(text)}</div>${meta ? `<div class="tmeta">${esc(meta)}</div>` : ""}<div class="tbar"></div>`;
+  $("toasts").appendChild(el);
+  while($("toasts").children.length > 3) $("toasts").firstChild.remove();
+  setTimeout(() => {
+    el.classList.add("out");
+    setTimeout(() => el.remove(), 170);
+  }, dur);
+}
+
+function triggerShake(el){
+  if(!el) return;
+  el.classList.remove("shake");
+  void el.offsetWidth;
+  el.classList.add("shake");
+}
+
+/* Actions */
+function jumpHit(next = true){
+  const r = state.rows[state.sel];
+  if(!r) return;
+  const {pos} = parseQuery($("q").value);
+  const s = S[r.si];
+  const hits = s.m.map((_, i) => i).filter(i => pos.length && pos.every(w => hasTerm(s.m[i][2], w)));
+  if(!hits.length){ showToast("目前對話沒有其他關鍵字命中", {dur:1600}); return; }
+  const at = hits.indexOf(state.cursor);
+  state.cursor = hits[(at + (next ? 1 : hits.length - 1) + hits.length) % hits.length];
+  state.pulseKey = `${r.si}:${state.cursor}`;
+  render();
+}
+
+function copyResume(){
+  const r = state.rows[state.sel];
+  if(!r) return;
+  const s = S[r.si];
+  const cmd = RES[s.h](s);
+  navigator.clipboard?.writeText(cmd).catch(()=>{});
+  showToast("Copied resume command", { meta: cmd });
+}
+
+function resumeSession(){
+  const r = state.rows[state.sel];
+  if(!r) return;
+  const s = S[r.si];
+  showToast(`Resuming in ${s.cwd}`, { meta: RES[s.h](s), dur: 2600 });
+}
+
+function runSync(){
+  if(state.syncing) return;
+  state.syncing = true;
+  render();
+  setTimeout(() => {
+    state.syncing = false;
+    state.fresh += 2;
+    render();
+    showToast("Index synced · +2 new messages", { meta: "不中斷目前捲動與搜尋位置" });
+  }, 1500);
+}
+
+function togglePopover(kind){
+  state.help = false;
+  state.popover = state.popover === kind ? null : kind;
+  render();
+}
+
+function applyRangeSpec(raw){
+  const v = raw.trim().toLowerCase();
+  if(!v || v === "all"){
+    state.rangeDays = null; state.rangeLabel = ""; state.popover = null; search(); return;
+  }
+  const m = v.match(/^(\d+)([hdw])$/);
+  if(m){
+    const n = +m[1], u = m[2];
+    state.rangeDays = u === "h" ? Math.ceil(n/24) : u === "w" ? n*7 : n;
+    state.rangeLabel = v; state.popover = null; search();
+    showToast(`Date range set: ${v}`);
+    return;
+  }
+  // Invalid range -> fx.Shake!
+  const err = $("pop-err");
+  if(err) err.textContent = `無效格式 "${raw}" — 請用 24h、7d、30d 或留空`;
+  triggerShake($("popover"));
+}
+
+/* Splitter drag (bloom on.Drag) */
+(function initSplitter(){
+  let dragging = false, startY = 0, startH = 0;
+  const sp = $("splitter");
+  sp.addEventListener("mousedown", e => {
+    if(state.full || e.target.closest("#exit-full")) return;
+    dragging = true; startY = e.clientY; startH = $("list-pane").clientHeight;
+    sp.classList.add("active");
+    $("list-pane").classList.add("dragging");
+    e.preventDefault();
+  });
+  window.addEventListener("mousemove", e => {
+    if(!dragging) return;
+    const termH = $("term").clientHeight;
+    const avail = Math.max(200, termH - 96);
+    const nextH = Math.min(avail * 0.72, Math.max(68, startH + (e.clientY - startY)));
+    state.splitRatio = nextH / avail;
+    $("list-pane").style.height = Math.round(nextH) + "px";
+    updateThumb();
+  });
+  window.addEventListener("mouseup", () => {
+    if(!dragging) return;
+    dragging = false;
+    sp.classList.remove("active");
+    $("list-pane").classList.remove("dragging");
+  });
+  sp.addEventListener("dblclick", () => {
+    if(state.full) return;
+    state.splitRatio = 0.36;
+    applyListHeight();
+    showToast("Split ratio reset to 38%", { dur: 1400 });
+  });
+})();
+
+/* Hitmap drag scroll */
+(function initHitmapDrag(){
+  let dragging = false;
+  const scrub = e => {
+    const rect = $("hitmap").getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+    const page = $("page");
+    page.scrollTop = ratio * Math.max(0, page.scrollHeight - page.clientHeight);
+  };
+  $("hitmap").addEventListener("mousedown", e => {
+    if(e.target.classList.contains("tick")) return;
+    dragging = true; $("hitmap").classList.add("dragging"); scrub(e); e.preventDefault();
+  });
+  window.addEventListener("mousemove", e => { if(dragging) scrub(e); });
+  window.addEventListener("mouseup", () => {
+    if(!dragging) return; dragging = false; $("hitmap").classList.remove("dragging");
+  });
+  $("page").addEventListener("scroll", updateThumb);
+})();
+
+/* Event wiring */
+$("q").addEventListener("input", () => { state.sel = 0; state.popover = null; search(); });
+$("q").addEventListener("focus", () => { state.focus = "q"; state.popover = null; render(); });
+
+$("chip-agent").addEventListener("click", e => { e.stopPropagation(); togglePopover("agent"); });
+$("chip-range").addEventListener("click", e => { e.stopPropagation(); togglePopover("range"); });
+
+$("pens").addEventListener("click", e => {
+  const b = e.target.closest("[data-pen]");
+  if(b){ state.pens.splice(+b.dataset.pen, 1); render(); }
+});
+
+$("list-pane").addEventListener("click", e => {
+  const row = e.target.closest(".row[data-i]");
+  if(!row) return;
+  state.sel = +row.dataset.i;
+  state.focus = "list";
+  state.cursor = state.rows[state.sel].mi;
+  state.popover = null;
+  $("q").blur();
+  render();
+});
+$("list-pane").addEventListener("dblclick", e => {
+  if(e.target.closest(".row[data-i]")) resumeSession();
+});
+
+$("page").addEventListener("click", e => {
+  state.focus = "list"; $("q").blur(); state.popover = null;
+  const tool = e.target.closest("[data-tool]");
+  if(tool){
+    const key = tool.dataset.tool;
+    if(state.openTools.has(key)) state.openTools.delete(key); else state.openTools.add(key);
+    render(); return;
+  }
+  if(e.target.closest("[data-unfold]")){
+    state.full = true; render(); return;
+  }
+  const msg = e.target.closest(".msg[data-mi]");
+  if(msg){
+    state.cursor = +msg.dataset.mi; render();
+  }
+});
+
+$("sp-right").addEventListener("click", e => {
+  if(e.target.closest("#exit-full")){ state.full = false; render(); }
+});
+
+$("popover").addEventListener("click", e => {
+  e.stopPropagation();
+  const ag = e.target.closest("[data-pick-agent]");
+  if(ag){ state.harness = ag.dataset.pickAgent; state.sel = 0; state.popover = null; search(); return; }
+  const d = e.target.closest("[data-days]");
+  if(d){
+    const v = d.dataset.days;
+    state.rangeDays = v ? +v : null;
+    state.rangeLabel = v ? (v === "1" ? "24h" : v + "d") : "";
+    state.popover = null; search();
+  }
+});
+
+$("popover").addEventListener("keydown", e => {
+  if(e.key === "Escape"){ state.popover = null; render(); e.preventDefault(); return; }
+  if(e.key === "Enter" && state.popover === "range"){
+    applyRangeSpec($("pop-range-in").value); e.preventDefault();
+  } else if(e.key === "Enter" && state.popover === "highlight"){
+    const w = $("pop-hl-in").value.trim();
+    if(w && !state.pens.some(p => p.w.toLowerCase() === w.toLowerCase())){
+      state.pens.push({ w, c: state.pens.length % 3 });
+      showToast(`Highlighted "${w}"`, { dur: 1500 });
+    }
+    state.popover = null; render(); e.preventDefault();
+  }
+});
+
+$("backdrop").addEventListener("click", e => {
+  if(e.target === $("backdrop")){ state.help = false; render(); }
+});
+
+$("ft").addEventListener("click", e => {
+  const act = e.target.closest("[data-act]")?.dataset.act;
+  if(!act) return;
+  if(act === "resume") resumeSession();
+  else if(act === "toList"){ state.focus = "list"; $("q").blur(); render(); }
+  else if(act === "agent") togglePopover("agent");
+  else if(act === "range") togglePopover("range");
+  else if(act === "hl") togglePopover("highlight");
+  else if(act === "jump") jumpHit(true);
+  else if(act === "full"){ state.full = !state.full; render(); }
+  else if(act === "copy") copyResume();
+  else if(act === "sync") runSync();
+  else if(act === "help"){ state.help = !state.help; state.popover = null; render(); }
+});
+
+document.addEventListener("click", e => {
+  if(state.popover && !$("popover").contains(e.target) && !e.target.closest(".chip") && !e.target.closest(".trig")){
+    state.popover = null; render();
+  }
+});
+
+/* Keyboard shortcuts */
+document.addEventListener("keydown", e => {
+  if(state.popover && $("popover").contains(document.activeElement)) return;
+  const inQ = document.activeElement === $("q");
+  if(e.key === "Escape"){
+    if(state.help){ state.help = false; render(); e.preventDefault(); return; }
+    if(state.popover){ state.popover = null; render(); e.preventDefault(); return; }
+    if(inQ){ state.focus = "list"; $("q").blur(); render(); e.preventDefault(); return; }
+  }
+  if(e.key === "Tab"){
+    e.preventDefault();
+    togglePopover("agent");
+    return;
+  }
+  if(inQ){
+    if(e.key === "ArrowDown"){ state.focus = "list"; $("q").blur(); render(); e.preventDefault(); }
+    else if(e.key === "Enter"){ resumeSession(); e.preventDefault(); }
+    return;
+  }
+  if(state.help && e.key !== "?"){ state.help = false; render(); e.preventDefault(); return; }
+  switch(e.key){
+    case "j": case "ArrowDown":
+      if(state.sel + 1 < state.rows.length){ state.sel++; state.cursor = state.rows[state.sel].mi; render(); }
+      e.preventDefault(); break;
+    case "k": case "ArrowUp":
+      if(state.sel === 0){ state.focus = "q"; $("q").focus(); render(); }
+      else { state.sel--; state.cursor = state.rows[state.sel].mi; render(); }
+      e.preventDefault(); break;
+    case "/": state.focus = "q"; $("q").focus(); render(); e.preventDefault(); break;
+    case "v": state.full = !state.full; render(); e.preventDefault(); break;
+    case "?": state.help = !state.help; state.popover = null; render(); e.preventDefault(); break;
+    case "n": jumpHit(true); e.preventDefault(); break;
+    case "N": jumpHit(false); e.preventDefault(); break;
+    case "d": togglePopover("range"); e.preventDefault(); break;
+    case "D": state.rangeDays = null; state.rangeLabel = ""; search(); showToast("Date range cleared", {dur:1400}); e.preventDefault(); break;
+    case "h": togglePopover("highlight"); e.preventDefault(); break;
+    case "H": state.pens = []; render(); e.preventDefault(); break;
+    case "y": copyResume(); e.preventDefault(); break;
+    case "r": runSync(); e.preventDefault(); break;
+    case "Enter": resumeSession(); e.preventDefault(); break;
+  }
+});
+
+/* Top demo trigger buttons */
+$("btn-full").onclick = () => { state.full = !state.full; state.popover = null; state.help = false; render(); };
+$("btn-help").onclick = () => { state.help = !state.help; state.popover = null; render(); };
+$("btn-agent").onclick = () => togglePopover("agent");
+$("btn-range").onclick = () => togglePopover("range");
+$("btn-hl").onclick = () => togglePopover("highlight");
+$("btn-jump").onclick = () => { state.popover = null; state.help = false; jumpHit(true); };
+$("btn-toast").onclick = () => copyResume();
+$("btn-sync").onclick = () => runSync();
+$("btn-err").onclick = () => showToast("Directory no longer exists", { err: true, meta: "~/code/archived-experiment", dur: 2600 });
+
+/* Theme & motion toggles */
+function setTheme(t){
+  document.documentElement.dataset.theme = t;
+  $("term").classList.toggle("dark", t === "dark");
+  $("tl").setAttribute("aria-pressed", t === "light");
+  $("td").setAttribute("aria-pressed", t === "dark");
+}
+$("tl").onclick = () => setTheme("light");
+$("td").onclick = () => setTheme("dark");
+setTheme(matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+
+function setMotion(on){
+  $("term").classList.toggle("reduced", !on);
+  $("m-on").setAttribute("aria-pressed", on);
+  $("m-off").setAttribute("aria-pressed", !on);
+}
+$("m-on").onclick = () => setMotion(true);
+$("m-off").onclick = () => setMotion(false);
+
+window.addEventListener("resize", () => { applyListHeight(); updateThumb(); });
+search();
+</script>
+</body>
+</html>

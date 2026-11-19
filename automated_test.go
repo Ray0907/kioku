@@ -163,7 +163,7 @@ func TestAutomatedTUI(t *testing.T) {
 			t.Fatal(x.err)
 		}
 		next, _ := m.Update(x)
-		screen := ansi.Strip(next.(model).View())
+		screen := ansi.Strip(next.(model).View().Content)
 		if strings.Contains(screen, "Review Guidelines") || strings.Contains(screen, "Review this change b7needle") || q != "" && !strings.Contains(screen, "1 of 2 messages · 2 sessions") {
 			t.Errorf("automated TUI results: %s", screen)
 		}
@@ -219,7 +219,7 @@ func TestAutomatedCommonAndAppend(t *testing.T) {
 		if include {
 			wantHeader = "1 of 320 messages · 4 sessions"
 		}
-		if screen := ansi.Strip(next.(model).View()); !strings.Contains(screen, wantHeader) {
+		if screen := ansi.Strip(next.(model).View().Content); !strings.Contains(screen, wantHeader) {
 			t.Errorf("want %s: %s", wantHeader, screen)
 		}
 	}

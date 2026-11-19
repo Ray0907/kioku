@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/mattn/go-isatty"
 )
 
@@ -353,11 +353,7 @@ func run() error {
 	m.root = root
 	m.allTime = *opts.allTime
 	m.includeAutomated = *opts.includeAutomated
-	options := []tea.ProgramOption{tea.WithAltScreen()}
-	if !*opts.noMouse {
-		options = append(options, tea.WithMouseCellMotion())
-	}
-	final, e := tea.NewProgram(m, options...).Run()
+	final, e := tea.NewProgram(m).Run()
 	if e != nil {
 		return e
 	}

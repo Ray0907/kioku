@@ -36,7 +36,7 @@ func TestTUIHeaderTotals(t *testing.T) {
 				t.Fatal(x.err)
 			}
 			next, _ := m.Update(x)
-			got := strings.SplitN(ansi.Strip(next.(model).View()), "\n", 2)[0]
+			got := strings.SplitN(ansi.Strip(next.(model).View().Content), "\n", 2)[0]
 			if !strings.Contains(got, tc.want) || tc.name != "truncated" && strings.Contains(got, " of ") {
 				t.Fatalf("want header %q, got:\n%s", tc.want, got)
 			}
@@ -63,7 +63,7 @@ func TestTUIHeaderTotalsFollowQuery(t *testing.T) {
 		t.Helper()
 		next, _ := m.Update(x)
 		m = next.(model)
-		if got := ansi.Strip(m.View()); !strings.Contains(got, want) {
+		if got := ansi.Strip(m.View().Content); !strings.Contains(got, want) {
 			t.Fatalf("want header %q, got:\n%s", want, got)
 		}
 	}
@@ -100,7 +100,7 @@ func TestTUIInitialCountsPendingSync(t *testing.T) {
 	}
 	m := newModel(db, "zz", "all", nil, rows, false, 1, false)
 	m.allTime = true
-	if got := strings.SplitN(ansi.Strip(m.View()), "\n", 2)[0]; !strings.Contains(got, "1 messages · 1 sessions shown") {
+	if got := strings.SplitN(ansi.Strip(m.View().Content), "\n", 2)[0]; !strings.Contains(got, "1 messages · 1 sessions shown") {
 		t.Fatalf("startup presented loaded rows as totals: %s", got)
 	}
 	next, cmd := m.Update(syncEnvelope{x: syncMsg{done: true}})
@@ -110,7 +110,7 @@ func TestTUIInitialCountsPendingSync(t *testing.T) {
 		t.Fatal(x.err)
 	}
 	next, _ = m.Update(x)
-	if got := ansi.Strip(next.(model).View()); !strings.Contains(got, "1 of 3 messages · 3 sessions") {
+	if got := ansi.Strip(next.(model).View().Content); !strings.Contains(got, "1 of 3 messages · 3 sessions") {
 		t.Fatalf("post-sync count ignored --all-time: %s", got)
 	}
 }
@@ -140,7 +140,7 @@ func TestTUIHeaderCommonShortPrefixTotals(t *testing.T) {
 				t.Fatal(x.err)
 			}
 			next, _ := m.Update(x)
-			if got := ansi.Strip(next.(model).View()); !strings.Contains(got, tc.want) {
+			if got := ansi.Strip(next.(model).View().Content); !strings.Contains(got, tc.want) {
 				t.Fatalf("want header %q, got:\n%s", tc.want, got)
 			}
 		})
@@ -205,7 +205,7 @@ func TestTUIHeaderShortPrefixTotals(t *testing.T) {
 			t.Fatal(x.err)
 		}
 		next, _ := m.Update(x)
-		if got := ansi.Strip(next.(model).View()); !strings.Contains(got, tc.want) {
+		if got := ansi.Strip(next.(model).View().Content); !strings.Contains(got, tc.want) {
 			t.Fatalf("allTime=%v range=%v: want %q, got:\n%s", tc.allTime, tc.rng, tc.want, got)
 		}
 	}

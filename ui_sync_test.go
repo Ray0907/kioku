@@ -9,8 +9,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 func syncModel() model {
@@ -145,7 +143,7 @@ func TestRefreshKeySyncsThenRequeries(t *testing.T) {
 	m := syncModel()
 	m.focus = false
 	m.fresh = 5
-	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	next, cmd := m.Update(keyRunes("r"))
 	got := next.(model)
 	if cmd == nil || !got.syncing {
 		t.Fatal("r must start a sync even when automatic sync is off")
@@ -157,12 +155,12 @@ func TestRefreshKeySyncsThenRequeries(t *testing.T) {
 	}
 	// ignored while a sync is already running
 	got.fresh = 3
-	if next, cmd = got.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}}); cmd != nil || next.(model).fresh != 3 {
+	if next, cmd = got.Update(keyRunes("r")); cmd != nil || next.(model).fresh != 3 {
 		t.Fatal("r during a running sync must do nothing")
 	}
 	// in the search box r is just a letter
 	m.focus = true
-	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	next, _ = m.Update(keyRunes("r"))
 	if g := next.(model); g.q != m.q+"r" || g.syncing {
 		t.Fatalf("in the search box r is a letter: q=%q", g.q)
 	}
@@ -191,11 +189,11 @@ func TestParseSyncEvery(t *testing.T) {
 func TestNewCountShowsInHeader(t *testing.T) {
 	m := syncModel()
 	m.fresh = 12
-	if v := m.View(); !strings.Contains(v, "12 new") {
+	if v := m.View().Content; !strings.Contains(v, "12 new") {
 		t.Fatalf("header must show the new count:\n%s", v)
 	}
 	m.fresh = 0
-	if v := m.View(); strings.Contains(v, " new") {
+	if v := m.View().Content; strings.Contains(v, " new") {
 		t.Fatal("no new count when nothing is new")
 	}
 }

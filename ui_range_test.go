@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func rangeCorpus(t *testing.T) *sql.DB {
@@ -159,7 +159,14 @@ func TestSearchRangeOnCommonWordPath(t *testing.T) {
 	}
 }
 
-func keyRunes(s string) tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)} }
+func keyRunes(s string) tea.KeyPressMsg {
+	r := []rune(s)
+	var code rune
+	if len(r) == 1 {
+		code = r[0]
+	}
+	return tea.KeyPressMsg{Code: code, Text: s}
+}
 
 // settle runs a command and feeds the resulting message back until no command is left.
 func settle(t *testing.T, m model, cmd tea.Cmd) model {
@@ -194,14 +201,14 @@ func TestRangeKeyFlow(t *testing.T) {
 	if m.prompt != promptRange {
 		t.Fatal("d must open the range prompt")
 	}
-	if v := m.View(); !strings.Contains(v, "range") || !strings.Contains(v, "since..until") {
+	if v := m.View().Content; !strings.Contains(v, "range") || !strings.Contains(v, "since..until") {
 		t.Fatalf("prompt must say what to type:\n%s", v)
 	}
 	for _, r := range "2026-01-01..2026-01-02" {
 		next, _ = m.Update(keyRunes(string(r)))
 		m = next.(model)
 	}
-	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	next, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	m = next.(model)
 	if m.prompt != promptNone || m.rng.active() {
 		t.Fatal("esc cancels without setting a range")
@@ -213,7 +220,7 @@ func TestRangeKeyFlow(t *testing.T) {
 		next, _ = m.Update(keyRunes(string(r)))
 		m = next.(model)
 	}
-	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	next, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = next.(model)
 	if cmd != nil || m.rng.active() || m.prompt != promptNone || !strings.Contains(m.status, "invalid bogus") {
 		t.Fatalf("a bad value keeps the old range and says why: status=%q cmd=%v", m.status, cmd != nil)
@@ -226,7 +233,7 @@ func TestRangeKeyFlow(t *testing.T) {
 		next, _ = m.Update(keyRunes(string(r)))
 		m = next.(model)
 	}
-	next, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	next, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = settle(t, next.(model), cmd)
 	if m.rng.Since == "" || m.rng.Until != "" {
 		t.Fatalf("range not set: %+v", m.rng)
@@ -234,7 +241,7 @@ func TestRangeKeyFlow(t *testing.T) {
 	if uids(m.rows) != "new" {
 		t.Fatalf("rows after setting the range: %q", uids(m.rows))
 	}
-	if v := m.View(); !strings.Contains(v, "from 2026-10-01") {
+	if v := m.View().Content; !strings.Contains(v, "from 2026-10-01") {
 		t.Fatalf("header must show the range:\n%s", v)
 	}
 
@@ -243,13 +250,13 @@ func TestRangeKeyFlow(t *testing.T) {
 	if m.rng.active() || len(m.rows) != 2 {
 		t.Fatalf("D must clear the range and re-run the search: %+v rows=%d", m.rng, len(m.rows))
 	}
-	if strings.Contains(m.View(), "from 2026") {
+	if strings.Contains(m.View().Content, "from 2026") {
 		t.Fatal("header still shows a cleared range")
 	}
 
 	m.rng = lastTwentyDays
 	m.rows = nil
-	if v := m.View(); !strings.Contains(v, "No message in this date range") {
+	if v := m.View().Content; !strings.Contains(v, "No message in this date range") {
 		t.Fatalf("empty result in a range must say so:\n%s", v)
 	}
 }

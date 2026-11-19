@@ -375,7 +375,7 @@ func TestHereTUITogglePreservesState(t *testing.T) {
 	load := m.requestLoad()
 	m = settle(t, m, load)
 	selected := m.rows[m.sel].ID
-	header := strings.Split(m.View(), "\n")[0]
+	header := strings.Split(m.View().Content, "\n")[0]
 	if strings.Contains(header, filepath.Base(root)) {
 		t.Fatal("scope basename shown while off")
 	}
@@ -392,7 +392,7 @@ func TestHereTUITogglePreservesState(t *testing.T) {
 		if len(m.rows) != wantRows || m.rows[m.sel].ID != selected || m.q != "scopeprobe" || m.focus || m.rng != lastTwentyDays || !reflect.DeepEqual(m.pens, []pen{{"probe", 1}}) || len(m.hitIndex) == 0 {
 			t.Fatalf("toggle lost state: rows=%d sel=%d q=%q focus=%v range=%+v pens=%v", len(m.rows), m.sel, m.q, m.focus, m.rng, m.pens)
 		}
-		h := strings.Split(m.View(), "\n")[0]
+		h := strings.Split(m.View().Content, "\n")[0]
 		if strings.Contains(h, filepath.Base(root)) != on {
 			t.Fatalf("header scope on=%v: %s", on, h)
 		}
@@ -408,7 +408,7 @@ func TestHereTUITogglePreservesState(t *testing.T) {
 	}
 	m.focus = false
 	m.help = true
-	if !strings.Contains(m.View(), "p        ") {
+	if !strings.Contains(m.View().Content, "p        ") {
 		t.Fatal("help must document p")
 	}
 	t.Chdir(os.Getenv("HOME"))
@@ -431,7 +431,7 @@ func TestHereTUIWideBasename(t *testing.T) {
 	m = settle(t, updated.(model), cmd)
 	for _, width := range []int{25, 40, 80, 120} {
 		m.width = width
-		header := strings.Split(m.View(), "\n")[0]
+		header := strings.Split(m.View().Content, "\n")[0]
 		if displayWidth(header) != width {
 			t.Fatalf("CJK header width=%d want=%d: %q", displayWidth(header), width, header)
 		}

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/charmbracelet/x/ansi"
 )
@@ -33,17 +33,17 @@ func listLine(v string) string {
 }
 
 func TestSelectedRowMarkerFollowsFocus(t *testing.T) {
-	if l := listLine(lookModel(false).View()); !strings.Contains(l, "▎") {
+	if l := listLine(lookModel(false).View().Content); !strings.Contains(l, "▎") {
 		t.Fatalf("list focus marks the selected row with ▎: %q", l)
 	}
-	l := listLine(lookModel(true).View())
+	l := listLine(lookModel(true).View().Content)
 	if strings.Contains(l, "▎") || !strings.Contains(l, "›") {
 		t.Fatalf("query focus demotes the selection to ›: %q", l)
 	}
 }
 
 func TestTranscriptSpeakerRules(t *testing.T) {
-	v := ansi.Strip(lookModel(false).View())
+	v := ansi.Strip(lookModel(false).View().Content)
 	var you, asst string
 	for _, l := range strings.Split(v, "\n") {
 		if strings.Contains(l, "fts5 question") {
@@ -59,7 +59,7 @@ func TestTranscriptSpeakerRules(t *testing.T) {
 }
 
 func TestMessagesSeparatedByBlankLine(t *testing.T) {
-	lines := strings.Split(ansi.Strip(lookModel(false).View()), "\n")
+	lines := strings.Split(ansi.Strip(lookModel(false).View().Content), "\n")
 	for i, l := range lines {
 		if strings.Contains(l, "fts5 question") {
 			if strings.TrimSpace(lines[i+1]) != "" {
@@ -72,7 +72,7 @@ func TestMessagesSeparatedByBlankLine(t *testing.T) {
 }
 
 func TestFooterKeysPadded(t *testing.T) {
-	v := ansi.Strip(lookModel(false).View())
+	v := ansi.Strip(lookModel(false).View().Content)
 	if !strings.Contains(v, " enter  resume") {
 		t.Fatalf("key caps carry a space on each side:\n%s", v)
 	}
@@ -105,12 +105,12 @@ func toolModel() model {
 }
 
 func TestToolMessagesCollapseUntilToggled(t *testing.T) {
-	v := ansi.Strip(toolModel().View())
+	v := ansi.Strip(toolModel().View().Content)
 	if !strings.Contains(v, "Bash · ls") || strings.Contains(v, "line two") || !strings.Contains(v, "+2 lines") {
 		t.Fatalf("tool message folds to one line with a count:\n%s", v)
 	}
 	next, _ := toolModel().Update(keyRunes("t"))
-	if v := ansi.Strip(next.(model).View()); !strings.Contains(v, "line three") {
+	if v := ansi.Strip(next.(model).View().Content); !strings.Contains(v, "line three") {
 		t.Fatalf("t opens tool output:\n%s", v)
 	}
 }
@@ -119,20 +119,20 @@ func TestToolHitStaysOpen(t *testing.T) {
 	m := toolModel()
 	m.q = "line"
 	m.hitIndex = map[int]bool{2: true}
-	if v := ansi.Strip(m.View()); !strings.Contains(v, "line two") {
+	if v := ansi.Strip(m.View().Content); !strings.Contains(v, "line two") {
 		t.Fatalf("a tool message that matches the query is never folded:\n%s", v)
 	}
 }
 
 func TestSpaceKeyTypesIntoQueryAndPrompts(t *testing.T) {
-	type_ := func(m model, keys ...tea.KeyMsg) model {
+	type_ := func(m model, keys ...tea.KeyPressMsg) model {
 		for _, k := range keys {
 			next, _ := m.Update(k)
 			m = next.(model)
 		}
 		return m
 	}
-	space := tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}}
+	space := tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}
 	m := lookModel(false)
 	m.focus, m.q = true, ""
 	m = type_(m, keyRunes("abc"), space, keyRunes("def"))

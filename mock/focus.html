@@ -1,0 +1,784 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>kioku — Before / After（好找主題・減輕閱讀疲勞）</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+:root{
+  --bg:#eef0f3;--fg:#1b1d22;--muted:#5d6270;--line:#d4d8df;--card:#f8f9fb;
+  --sans:"Noto Sans TC",system-ui,sans-serif;
+  --mono:"JetBrains Mono","Noto Sans TC",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;--bg:#111216;--fg:#e6e7eb;--muted:#9a9fac;--line:#2a2d35;--card:#171920;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;--bg:#111216;--fg:#e6e7eb;--muted:#9a9fac;--line:#2a2d35;--card:#171920;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;padding:24px 16px 52px;
+  background:var(--bg);color:var(--fg);
+  font-family:var(--sans);font-size:14.5px;line-height:1.55;
+}
+.wrap{max-width:1200px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+
+.top{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between}
+.top h1{margin:0;font-size:20px;letter-spacing:-.01em}
+.top p{margin:3px 0 0;color:var(--muted);font-size:13px}
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--card)}
+.seg button{
+  font:inherit;font-size:13px;background:none;color:var(--muted);
+  border:0;padding:5px 13px;cursor:pointer;transition:background .12s,color .12s;
+}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg);font-weight:600}
+.seg.primary button[aria-pressed="true"]{background:#2a64b0;color:#fff}
+:root[data-theme="dark"] .seg.primary button[aria-pressed="true"]{background:#7fb0ee;color:#111318}
+
+/* Diff summary pill bar */
+.diffbar{
+  display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;
+  padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);
+  font-size:12.5px;color:var(--muted);
+}
+.diffbar .items{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
+.diffbar b{color:var(--fg)}
+.diffbar .act{display:flex;gap:6px;align-items:center}
+.mini-btn{
+  font:inherit;font-size:12px;color:var(--fg);background:var(--bg);
+  border:1px solid var(--line);border-radius:5px;padding:3px 9px;cursor:pointer;
+}
+.mini-btn:hover{border-color:var(--fg)}
+.mini-btn.on{border-color:#2a64b0;color:#2a64b0;font-weight:600}
+:root[data-theme="dark"] .mini-btn.on{border-color:#7fb0ee;color:#7fb0ee}
+
+/* Terminal shell — faithful to ui.go palettes */
+.term{
+  --tbg:#ffffff;--tfg:#1f2328;
+  --hit:#b6322d;--muted:#606a74;--selbg:#d2e3f9;--hover:#f4f7fb;
+  --surf:#eef3f9;--acc:#2a64b0;--key:#e3eaf3;--border:#d6dee8;
+  --claude:#8d5d1c;--codex:#147175;--pi:#3b723e;
+  --pulse:rgba(42,100,176,.22);
+
+  background:var(--tbg);color:var(--tfg);
+  font-family:var(--mono);font-size:13px;line-height:1.66;
+  border-radius:10px;border:1px solid var(--line);
+  height:min(680px,82vh);min-height:540px;
+  display:flex;flex-direction:column;overflow:hidden;position:relative;
+}
+.term.dark{
+  --tbg:#1c1d22;--tfg:#d8dce4;
+  --hit:#f6857a;--muted:#95a0ab;--selbg:#293647;--hover:#222833;
+  --surf:#232a35;--acc:#7fb0ee;--key:#303a49;--border:#313a47;
+  --claude:#ddae6c;--codex:#76c7cc;--pi:#8fc990;
+  --pulse:rgba(127,176,238,.28);
+}
+
+/* Header */
+.hdr{
+  background:var(--surf);
+  display:flex;align-items:center;gap:8px;
+  padding:5px 14px;flex:0 0 auto;
+}
+.hdr .brand{color:var(--muted);font-weight:700}
+.hdr .arrow{color:var(--muted)}
+.hdr input{
+  flex:1;min-width:0;background:none;border:0;outline:0;
+  color:var(--tfg);font:inherit;font-weight:700;caret-color:var(--acc);
+}
+.hdr .count{color:var(--muted);font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums}
+
+/* Zone dimming in AFTER mode (bloom fx.Dim concept) */
+.zone{transition:opacity .15s ease}
+.term.after.focus-q .list-pane,
+.term.after.focus-q .page-wrap{opacity:.44}
+.term.after.focus-list .page-wrap{opacity:.72}
+.term.after.focus-page .list-pane{opacity:.52}
+
+/* List pane */
+.list-pane{
+  flex:0 0 auto;
+  height:36%;
+  overflow-y:auto;overflow-x:hidden;
+  padding:6px 0;
+}
+.term.after .list-pane{
+  transition:height .15s cubic-bezier(.22,1,.36,1), opacity .15s ease, padding .15s ease;
+}
+.term.full .list-pane{
+  height:0!important;padding-top:0;padding-bottom:0;opacity:0;overflow:hidden;
+}
+
+/* BEFORE list rows: dense, raw mid-sentence snippets */
+.row-before{
+  display:grid;grid-template-columns:22px 20px 1fr 12ch 5ch;
+  padding:1px 14px 1px 10px;cursor:pointer;white-space:nowrap;
+}
+.row-before.band{background:var(--selbg)}
+.row-before .cur{text-align:center;font-weight:700}
+.row-before.band .cur{color:var(--acc)}
+.row-before .ag{text-align:center;font-weight:700}
+.row-before .sn{overflow:hidden;text-overflow:ellipsis;padding-right:10px}
+.row-before .pj{color:var(--muted);overflow:hidden;text-overflow:ellipsis;padding-right:8px}
+.row-before .tm{color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.row-before.sel .pj,.row-before.sel .tm{color:var(--tfg);font-weight:700}
+
+/* AFTER list rows: Session Topic first + quiet matched line + hit count */
+.row-after{
+  display:grid;grid-template-columns:22px 20px 1fr auto;
+  gap:0 6px;
+  padding:5px 16px 5px 10px;
+  cursor:pointer;
+  border-bottom:1px solid transparent;
+  transition:background .08s ease;
+}
+.row-after:hover:not(.band){background:var(--hover)}
+.row-after.band{background:var(--selbg)}
+.row-after .cur{text-align:center;font-weight:700;grid-row:span 2;align-self:start}
+.row-after.band .cur{color:var(--acc)}
+.row-after .ag{text-align:center;font-weight:700;grid-row:span 2;align-self:start}
+.row-after .topic{
+  font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  color:var(--tfg);
+}
+.row-after .rightmeta{
+  color:var(--muted);font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums;
+  display:flex;align-items:center;gap:10px;
+}
+.row-after.sel .rightmeta{color:var(--tfg)}
+.row-after .hitpill{
+  font-size:11px;font-weight:700;color:var(--hit);
+  padding:0 5px;border-radius:3px;background:var(--surf);
+}
+.row-after.band .hitpill{background:var(--tbg)}
+.row-after .subsnip{
+  grid-column:3 / 5;
+  color:var(--muted);font-size:12px;line-height:1.45;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  margin-top:1px;
+}
+
+.hh{color:var(--hit);font-weight:700;text-decoration:underline;text-underline-offset:3px}
+
+/* Transcript container */
+.page-wrap{
+  flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;
+}
+
+/* Transcript title bar */
+.page-hd{
+  background:var(--surf);
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:5px 14px;flex:0 0 auto;
+}
+.page-hd .left{min-width:0;display:flex;align-items:baseline;gap:8px;overflow:hidden;white-space:nowrap}
+.page-hd .proj{font-weight:700}
+.page-hd .topic-bar{
+  color:var(--tfg);font-weight:600;overflow:hidden;text-overflow:ellipsis;
+}
+.page-hd .meta{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis}
+.page-hd .right{
+  display:flex;align-items:center;gap:8px;flex-shrink:0;
+  color:var(--muted);font-size:12px;white-space:nowrap;
+}
+.mode-tag{
+  font-size:11px;font-weight:700;padding:1px 6px;border-radius:3px;
+  background:var(--key);color:var(--acc);cursor:pointer;border:0;font-family:inherit;
+}
+
+/* Transcript body + 1-cell Hit-Map rail */
+.page-body-shell{
+  flex:1;min-height:0;display:flex;position:relative;overflow:hidden;
+}
+.page{
+  flex:1;min-width:0;overflow-y:auto;
+  padding:10px 14px 16px 0;
+}
+.term.after .page{scrollbar-width:none}
+.term.after .page::-webkit-scrollbar{display:none}
+
+/* Key typography difference: BEFORE spans full width; AFTER caps reading measure at ~78ch */
+.msg{
+  display:grid;grid-template-columns:4ch 6ch 2ch 6ch 1fr;
+  padding:2px 12px 2px 0;margin-bottom:6px;
+}
+.term.after .msg{
+  padding:3px 16px 3px 0;margin-bottom:10px;
+}
+.msg .star{text-align:right;padding-right:1ch;font-weight:700}
+.msg.hit .star{color:var(--hit)}
+.msg.cur .star{color:var(--tfg)}
+.msg .ts{color:var(--muted);font-variant-numeric:tabular-nums}
+.msg .rule{color:var(--muted);text-align:center}
+.msg.user .rule{color:var(--acc);font-weight:700}
+.msg .role{color:var(--muted)}
+.msg.user .role{color:var(--tfg);font-weight:700}
+.msg.context .role,.msg.context .body{color:var(--muted)}
+.msg.tool .body{color:var(--muted)}
+.msg.cur{background:var(--selbg)}
+.msg.cur .ts,.msg.cur .role{color:var(--tfg);font-weight:700}
+.msg .body{
+  white-space:pre-wrap;overflow-wrap:anywhere;
+}
+/* Measure cap in AFTER mode */
+.term.after .msg .body{
+  max-width:78ch;
+  line-height:1.72;
+}
+.msg.pulse{animation:hit-pulse .28s ease-out}
+@keyframes hit-pulse{0%{background:var(--pulse)}100%{background:var(--selbg)}}
+
+.fold-row{
+  padding:2px 0 8px 18ch;
+  color:var(--muted);font-size:12px;
+  cursor:pointer;
+}
+.term.after .fold-row:hover{color:var(--acc)}
+
+/* 1-cell Hit-Map Rail (ONLY in AFTER mode) */
+.rail{
+  width:14px;flex:0 0 14px;position:relative;
+  border-left:1px solid var(--surf);
+  cursor:pointer;
+}
+.term.before .rail{display:none}
+.rail .thumb{
+  position:absolute;left:4px;right:4px;min-height:18px;border-radius:2px;
+  background:var(--muted);opacity:.32;pointer-events:none;
+}
+.rail .tick{
+  position:absolute;left:2px;right:2px;height:3px;border-radius:1px;
+  background:var(--hit);cursor:pointer;
+}
+.rail .tick.cur{background:var(--acc);height:4px}
+
+/* Footer */
+.ft{
+  padding:5px 14px 6px;flex:0 0 auto;
+  border-top:1px solid var(--surf);
+  display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;
+  font-size:12px;color:var(--muted);
+}
+.ft kbd{
+  font:inherit;font-weight:700;color:var(--tfg);
+  background:var(--key);padding:0 6px;border-radius:3px;margin-right:4px;
+}
+.ft .kitem{cursor:pointer}
+.ft .kitem:hover kbd{color:var(--acc)}
+
+/* Summary comparison cards */
+.compare{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;
+}
+@media (max-width:820px){.compare{grid-template-columns:1fr}}
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:8px;
+  padding:11px 13px;font-size:13px;
+}
+.card h3{margin:0 0 5px;font-size:13.5px}
+.card .b{color:var(--muted);font-size:12.5px;margin-bottom:4px}
+.card .a{color:var(--fg);font-size:12.5px}
+.card .lbl-b{color:#b6322d;font-weight:700;font-family:var(--mono);font-size:11px;margin-right:5px}
+.card .lbl-a{color:#2a64b0;font-weight:700;font-family:var(--mono);font-size:11px;margin-right:5px}
+:root[data-theme="dark"] .card .lbl-b{color:#f6857a}
+:root[data-theme="dark"] .card .lbl-a{color:#7fb0ee}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>kioku — 只做最關鍵的 3 個改善（Before / After 對照）</h1>
+      <p>針對「太多不好找主題、字太多眼睛很累」：<strong>Topic + Outline</strong>、<strong>限寬 78ch + 焦點退暗</strong>、<strong>1-cell 命中捲軸</strong></p>
+    </div>
+    <div class="controls">
+      <div class="seg primary" role="group" aria-label="Before or After">
+        <button id="m-before" aria-pressed="false">Before（目前）</button>
+        <button id="m-after" aria-pressed="true">After（改善後）</button>
+      </div>
+      <div class="seg" role="group" aria-label="Theme">
+        <button id="tl" aria-pressed="false">Light</button>
+        <button id="td" aria-pressed="false">Dark</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="diffbar">
+    <div class="items" id="diff-desc"></div>
+    <div class="act">
+      <button class="mini-btn" id="btn-outline" title="切換 Outline / Full (o)">Outline: ON (o)</button>
+      <button class="mini-btn" id="btn-full" title="全螢幕閱讀 (v)">Full Read (v)</button>
+      <button class="mini-btn" id="btn-jump" title="下一個命中 (n)">Next Hit (n)</button>
+    </div>
+  </div>
+
+  <div class="term after focus-list" id="term">
+    <div class="hdr">
+      <span class="brand">kioku</span>
+      <span class="arrow">▸</span>
+      <input id="q" value="FTS5" autocomplete="off" spellcheck="false" aria-label="Search">
+      <span class="count" id="count"></span>
+    </div>
+
+    <div class="zone list-pane" id="list-pane"></div>
+
+    <div class="zone page-wrap" id="page-wrap">
+      <div class="page-hd">
+        <div class="left" id="hd-left"></div>
+        <div class="right" id="hd-right"></div>
+      </div>
+      <div class="page-body-shell">
+        <div class="page" id="page"></div>
+        <div class="rail" id="rail" title="紅點為命中位置，點擊直達">
+          <div class="thumb" id="thumb"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ft" id="ft"></div>
+  </div>
+
+  <div class="compare">
+    <div class="card">
+      <h3>1. Topic + Outline（解「不好找主題」）</h3>
+      <div class="b"><span class="lbl-b">BEFORE</span>列表每列都是截斷到一半的句子，同一個 session 重複出現多列；對話區把中間思考與工具紀錄全攤開。</div>
+      <div class="a"><span class="lbl-a">AFTER</span>列表以 <b>Session Topic</b> 為主標＋命中數，第二行才放灰字摘錄；對話預設 <b>Outline</b>（只看提問＋結論＋命中），字量少 ~70%。</div>
+    </div>
+    <div class="card">
+      <h3>2. 限寬 78ch + 焦點退暗（解「字多眼累」）</h3>
+      <div class="b"><span class="lbl-b">BEFORE</span>寬螢幕單行橫跨 140+ 字元，上下兩區同時 100% 滿對比度搶視線。</div>
+      <div class="a"><span class="lbl-a">AFTER</span>內文鎖在 <b>78ch</b> 留出右側呼吸空間；打字、挑列表、讀內文時非焦點區自動退色，按 <code>v</code> 用 150ms 平滑收起列表。</div>
+    </div>
+    <div class="card">
+      <h3>3. 1-cell 命中地圖捲軸（解「長對話迷路」）</h3>
+      <div class="b"><span class="lbl-b">BEFORE</span>長對話看不到自己捲到哪，也不知道其他命中分散在開頭還是尾段。</div>
+      <div class="a"><span class="lbl-a">AFTER</span>右側極細 1-cell 軌道標記所有紅點命中，點紅點或按 <code>n/N</code> 直達並帶一次 220ms 柔和脈衝。</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const AGENTS = {
+  claude: { mark: "✻", color: "var(--claude)" },
+  codex:  { mark: "◇", color: "var(--codex)" },
+  pi:     { mark: "π", color: "var(--pi)" },
+};
+
+// Realistic dense sessions (intermediate narration + tool noise + long replies)
+const SESSIONS = [
+  {
+    h:"claude", proj:"fts5-cjk", cwd:"~/code/fts5-cjk", date:"2026-11-18", age:"1d",
+    topic:"單字「茶」與 CJK 排除查詢支援（unigram 選項評估）",
+    m:[
+      {ts:"14:02", role:"user", final:true,  text:"目前的 FTS5 tokenizer 搜尋單字「茶」會完全找不到，但使用者常常只記得一個字，可以幫我看怎麼支援嗎？"},
+      {ts:"14:02", role:"asst", final:false, text:"我先檢查 cjk.c 的分詞邏輯與目前 bigram 切法，看看單字索引要在 tokenize 階段還是 query 階段處理。"},
+      {ts:"14:03", role:"tool", final:false, text:"read_file cjk.c (lines 1-240) · found xTokenize bigram loop"},
+      {ts:"14:03", role:"asst", final:false, text:"看到問題了：xTokenize 遇到連續 CJK 字元時只吐出 2-gram（例如「紅茶」只產出「紅茶」），長度為 1 的查詢在 FTS5 MATCH 裡沒有任何對應 token。"},
+      {ts:"14:04", role:"tool", final:false, text:"edit_file cjk.c · add unigram=1 tokenizer parameter"},
+      {ts:"14:05", role:"tool", final:false, text:"make test · ok 42/42 (0.118s)"},
+      {ts:"14:05", role:"asst", final:true,  text:"已加上 `unigram 1` 選項讓 FTS5 同時索引單字元與 bigram。實測搜尋「茶」可穩定命中「紅茶」與「綠茶」，而且保留原本片語順序檢查，代價是索引體積增加約 70%，查詢延遲維持在 2ms 內。"},
+      {ts:"15:18", role:"user", final:true,  text:"那排除語法 `-綠茶` 搭配中文片語會不會被 FTS5 解析壞掉？"},
+      {ts:"15:18", role:"asst", final:false, text:"我檢查一下 query.go 的 toFTS() 怎麼把負向詞轉成 SQLite FTS5 的 NOT 子句。"},
+      {ts:"15:19", role:"tool", final:false, text:"grep -n 'toFTS' query.go && go test -run TestNegation ./..."},
+      {ts:"15:20", role:"asst", final:true,  text:"確認安全：只要把每個詞包進雙引號再接 `NOT`，SQLite FTS5 會正確處理 CJK 負向詞（例如 `\"紅茶\"* NOT \"綠茶\"*`），已補上混合中英文的回歸測試。"},
+    ]
+  },
+  {
+    h:"codex", proj:"kioku", cwd:"~/code/kioku", date:"2026-11-16", age:"3d",
+    topic:"47k 筆訊息批次寫入 FTS5 速度優化（10 分鐘 → 6.9 秒）",
+    m:[
+      {ts:"09:12", role:"user", final:true,  text:"重新同步全部歷史紀錄時，47k 筆訊息塞進 SQLite FTS5 要跑將近十分鐘，幫我 profile 瓶頸在哪。"},
+      {ts:"09:13", role:"asst", final:false, text:"我先跑一次 sync benchmark 並量測每階段耗時（JSONL 解析 vs SQLite insert vs FTS5 rebuild）。"},
+      {ts:"09:14", role:"tool", final:false, text:"go test -bench=BenchmarkSync -cpuprofile=cpu.out ./..."},
+      {ts:"09:16", role:"asst", final:false, text:"找到主因了：每寫入一則訊息就開關一次 implicit transaction，加上 FTS5 預設直接存 content 造成雙倍寫入放大。"},
+      {ts:"09:18", role:"tool", final:false, text:"edit_file index.go · external-content FTS5 + single tx per session batch"},
+      {ts:"09:20", role:"asst", final:true,  text:"改為 external-content FTS5 table 搭配 trigger，並將每次同步包進單一 transaction 與 WAL 模式後，47k 筆訊息全量建索引從 10 分鐘降到 6.9 秒，增量同步都在 40ms 內完成。"},
+    ]
+  },
+  {
+    h:"pi", proj:"kioku", cwd:"~/code/kioku", date:"2026-11-14", age:"5d",
+    topic:"搜尋結果頁摘要截斷與高亮對齊（避免中文半個詞被切掉）",
+    m:[
+      {ts:"20:10", role:"user", final:true,  text:"搜尋結果的 snippet 有時候會從英文單字中間切開，而且 FTS5 回來的命中詞在寬終端機很難一眼掃到。"},
+      {ts:"20:11", role:"asst", final:false, text:"我先讀 ui_text.go 和 query.go，看看目前是用 SQLite FTS5 的 snippet() 還是自己在 Go 端做視窗裁切。"},
+      {ts:"20:12", role:"tool", final:false, text:"read_file ui_text.go · inspect tidySnippet & positions()"},
+      {ts:"20:14", role:"asst", final:true,  text:"已修正視窗起點對齊：拉丁單字會自動往後對齊到空白邊界，CJK 則直接以字元邊界開始，並以 rune 寬度（uniseg grapheme）計算高亮區間，避免 FTS5 命中標記偏移。"},
+    ]
+  },
+  {
+    h:"claude", proj:"search-api", cwd:"~/code/search-api", date:"2026-11-10", age:"1w",
+    topic:"BM25 權重調整：使用者提問與助理回覆的分數平衡",
+    m:[
+      {ts:"11:02", role:"user", final:true,  text:"長篇 tool output 常常把關鍵字衝到 BM25 第一名，反而把我們真正討論的決策壓到後面。"},
+      {ts:"11:03", role:"asst", final:false, text:"檢查 query.go 的 SQL 排序公式，看 bm25(messages_fts) 怎麼跟 role / timestamp 結合。"},
+      {ts:"11:04", role:"tool", final:false, text:"read_file query.go · inspect bm25 ordering"},
+      {ts:"11:06", role:"asst", final:true,  text:"已在 FTS5 排序公式中降低 `tool` role 的權重並給 `user` 提問小幅加權，實測決策類訊息能穩定排在前 3 名，不再被 log 洗版。"},
+    ]
+  },
+];
+
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const reE = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const CJK = /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/;
+
+let state = {
+  mode: "after",     // "before" | "after"
+  focus: "list",     // "q" | "list" | "page"
+  outline: true,     // only applies in "after"
+  full: false,
+  sel: 0,
+  cursor: null,
+  pulseKey: null,
+  rowsBefore: [],    // message-level rows (duplicate sessions!)
+  rowsAfter: [],     // session-grouped topic rows
+};
+
+function terms(q){
+  return q.trim().split(/\s+/).filter(Boolean).map(w => w.toLowerCase());
+}
+function spans(text, w){
+  const out = [];
+  if(!w) return out;
+  const re = CJK.test(w[0]) ? new RegExp(reE(w), "gi") : new RegExp(reE(w), "gi");
+  for(const m of text.matchAll(re)) out.push([m.index, m[0].length]);
+  return out;
+}
+function hasAll(text, ts){ return !ts.length || ts.every(w => spans(text, w).length > 0); }
+function paint(text, ts){
+  if(!ts.length) return esc(text);
+  const hit = new Array(text.length).fill(false);
+  ts.forEach(w => spans(text, w).forEach(([i,n]) => { for(let k=i;k<i+n;k++) hit[k] = true; }));
+  let out = "", k = 0;
+  while(k < text.length){
+    let j = k;
+    while(j < text.length && hit[j] === hit[k]) j++;
+    const seg = esc(text.slice(k, j));
+    out += hit[k] ? `<span class="hh">${seg}</span>` : seg;
+    k = j;
+  }
+  return out;
+}
+function clipAround(text, ts){
+  const t = text.replace(/\n/g, " ");
+  const f = ts.length ? spans(t, ts[0])[0] : null;
+  const start = f && f[0] > 18 ? f[0] - 18 : 0;
+  return (start ? "…" : "") + t.slice(start);
+}
+
+function search(){
+  const ts = terms($("q").value);
+  const rb = [], ra = [];
+  SESSIONS.forEach((s, si) => {
+    const matched = [];
+    s.m.forEach((m, mi) => {
+      if(hasAll(m.text, ts)) matched.push(mi);
+    });
+    if(matched.length){
+      matched.forEach(mi => rb.push({ si, mi }));
+      // Pick best representative hit (prefer final/user over intermediate tool)
+      const best = matched.find(mi => s.m[mi].final) ?? matched[0];
+      ra.push({ si, mi: best, hitCount: matched.length, allHits: matched });
+    }
+  });
+  state.rowsBefore = rb;
+  state.rowsAfter = ra;
+  const list = activeRows();
+  if(state.sel >= list.length) state.sel = Math.max(0, list.length - 1);
+  state.cursor = list[state.sel] ? list[state.sel].mi : null;
+  render();
+}
+
+function activeRows(){ return state.mode === "after" ? state.rowsAfter : state.rowsBefore; }
+
+function render(){
+  const ts = terms($("q").value);
+  const isAfter = state.mode === "after";
+  const rows = activeRows();
+
+  $("term").classList.toggle("after", isAfter);
+  $("term").classList.toggle("before", !isAfter);
+  $("term").classList.toggle("full", state.full);
+  $("term").classList.remove("focus-q", "focus-list", "focus-page");
+  $("term").classList.add("focus-" + state.focus);
+
+  $("m-before").setAttribute("aria-pressed", !isAfter);
+  $("m-after").setAttribute("aria-pressed", isAfter);
+
+  $("btn-outline").disabled = !isAfter;
+  $("btn-outline").style.opacity = isAfter ? "1" : ".4";
+  $("btn-outline").textContent = `Outline: ${state.outline ? "ON" : "OFF"} (o)`;
+  $("btn-outline").classList.toggle("on", isAfter && state.outline);
+  $("btn-full").classList.toggle("on", state.full);
+
+  $("diff-desc").innerHTML = isAfter
+    ? `<span><b>After</b>：列表顯示 <b>Session Topic</b>（${rows.length} 場不重複）· 內文限寬 <b>78ch</b> · ${state.outline ? "<b>Outline 模式</b>（濾掉中間過程）" : "完整對話"} · 非焦點區自動退暗</span>`
+    : `<span><b>Before（目前行為）</b>：列表展開全部 <b>${rows.length} 則零散訊息</b>（同 session 重複出現）· 內文撐滿整排寬度 · 上下兩區同時 100% 滿亮度</span>`;
+
+  $("count").textContent = isAfter
+    ? `${state.rowsAfter.length} sessions · ${state.rowsBefore.length} hits`
+    : `${state.rowsBefore.length} messages · ${state.rowsAfter.length} sessions`;
+
+  // Render list
+  if(!rows.length){
+    $("list-pane").innerHTML = `<div style="padding:10px 16px;color:var(--muted)">找不到符合的訊息。</div>`;
+  } else if(!isAfter){
+    $("list-pane").innerHTML = rows.map((r, i) => {
+      const s = SESSIONS[r.si];
+      const sel = i === state.sel;
+      const band = sel && state.focus !== "q";
+      const cur = sel ? (band ? "▎" : "›") : "";
+      return `<div class="row-before ${sel?"sel":""} ${band?"band":""}" data-i="${i}">
+        <span class="cur">${cur}</span>
+        <span class="ag" style="color:${AGENTS[s.h].color}">${AGENTS[s.h].mark}</span>
+        <span class="sn">${paint(clipAround(s.m[r.mi].text, ts), ts)}</span>
+        <span class="pj">${esc(s.proj)}</span>
+        <span class="tm">${s.age}</span>
+      </div>`;
+    }).join("");
+  } else {
+    $("list-pane").innerHTML = rows.map((r, i) => {
+      const s = SESSIONS[r.si];
+      const sel = i === state.sel;
+      const band = sel && state.focus !== "q";
+      const cur = sel ? (band ? "▎" : "›") : "";
+      return `<div class="row-after ${sel?"sel":""} ${band?"band":""}" data-i="${i}">
+        <span class="cur">${cur}</span>
+        <span class="ag" style="color:${AGENTS[s.h].color}">${AGENTS[s.h].mark}</span>
+        <span class="topic">${paint(s.topic, ts)}</span>
+        <span class="rightmeta">
+          <span class="hitpill">${r.hitCount} ${r.hitCount===1?"hit":"hits"}</span>
+          <span>${esc(s.proj)}</span>
+          <span>${s.age}</span>
+        </span>
+        <span class="subsnip">${paint(clipAround(s.m[r.mi].text, ts), ts)}</span>
+      </div>`;
+    }).join("");
+  }
+  document.querySelector(".list-pane .sel")?.scrollIntoView({block:"nearest"});
+
+  renderPage(ts);
+  renderFooter();
+}
+
+function renderPage(ts){
+  const isAfter = state.mode === "after";
+  const rows = activeRows();
+  const r = rows[state.sel];
+  if(!r){
+    $("hd-left").innerHTML = ""; $("hd-right").innerHTML = ""; $("page").innerHTML = "";
+    return;
+  }
+  const s = SESSIONS[r.si];
+  if(state.cursor === null) state.cursor = r.mi;
+  const isHit = i => ts.length > 0 && hasAll(s.m[i].text, ts);
+  const hits = s.m.map((_, i) => i).filter(isHit);
+
+  // Header
+  if(isAfter){
+    $("hd-left").innerHTML =
+      `<span style="color:${AGENTS[s.h].color};font-weight:700">${AGENTS[s.h].mark}</span>` +
+      `<span class="proj">${esc(s.proj)}</span>` +
+      `<span class="meta">·</span>` +
+      `<span class="topic-bar">${esc(s.topic)}</span>`;
+    $("hd-right").innerHTML =
+      `<span>${hits.length} hits</span>` +
+      `<button class="mode-tag" id="hd-outline">${state.outline ? "OUTLINE · o" : "ALL STEPS · o"}</button>`;
+  } else {
+    $("hd-left").innerHTML =
+      `<span style="color:${AGENTS[s.h].color};font-weight:700">${AGENTS[s.h].mark}</span>` +
+      `<span class="proj">${esc(s.proj)}</span>` +
+      `<span class="meta">${s.h}  ${s.date}  ${esc(s.cwd)}</span>`;
+    $("hd-right").innerHTML = `<span>result ${state.sel+1} of ${rows.length} · ${hits.length} hits here</span>`;
+  }
+
+  // Filter visible messages
+  const visible = [];
+  let hiddenRun = 0;
+  let html = "";
+
+  s.m.forEach((m, i) => {
+    const hit = isHit(i);
+    const cur = i === state.cursor;
+    // In AFTER + Outline: keep user prompts + final answers + current cursor (hides intermediate narration & tool noise!)
+    // In BEFORE: show everything (matches current full/context dump feel)
+    const show = !isAfter || !state.outline || m.final || cur;
+    if(!show){ hiddenRun++; return; }
+    if(hiddenRun > 0){
+      html += `<div class="fold-row" data-expand-outline="1">⋯ ${hiddenRun} intermediate steps hidden · press o for all</div>`;
+      hiddenRun = 0;
+    }
+    const who = m.role === "user" ? "you" : m.role;
+    const star = cur ? "›" : (hit ? "✱" : "");
+    const rule = m.role === "user" ? "┃" : "│";
+    const ctx = ts.length && !hit && !cur && isAfter && !state.outline;
+    const key = `${r.si}:${i}`;
+    const pulse = isAfter && state.pulseKey === key;
+
+    visible.push({ mi: i, hit, cur });
+    html += `<div class="msg ${m.role} ${hit?"hit":""} ${cur?"cur":""} ${ctx?"context":""} ${pulse?"pulse":""}" data-mi="${i}">
+      <span class="star">${star}</span>
+      <span class="ts">${m.ts}</span>
+      <span class="rule">${rule}</span>
+      <span class="role">${who}</span>
+      <div class="body">${paint(m.text, ts)}</div>
+    </div>`;
+  });
+  if(hiddenRun > 0){
+    html += `<div class="fold-row" data-expand-outline="1">⋯ ${hiddenRun} intermediate steps hidden · press o for all</div>`;
+  }
+
+  $("page").innerHTML = html;
+  state.pulseKey = null;
+
+  $("page").querySelector(".msg.cur")?.scrollIntoView({block:"nearest", behavior: isAfter ? "smooth" : "auto"});
+  requestAnimationFrame(() => renderRail(visible));
+}
+
+function renderRail(visible){
+  const rail = $("rail");
+  rail.querySelectorAll(".tick").forEach(el => el.remove());
+  if(state.mode !== "after") return;
+  const page = $("page");
+  const sh = Math.max(1, page.scrollHeight);
+
+  visible.forEach(v => {
+    if(!v.hit && !v.cur) return;
+    const el = page.querySelector(`.msg[data-mi="${v.mi}"]`);
+    if(!el) return;
+    const pct = Math.min(96, Math.max(2, (el.offsetTop / sh) * 100));
+    const tick = document.createElement("div");
+    tick.className = "tick" + (v.cur ? " cur" : "");
+    tick.style.top = pct + "%";
+    tick.addEventListener("click", e => {
+      e.stopPropagation();
+      const r = activeRows()[state.sel];
+      if(!r) return;
+      state.focus = "page";
+      state.cursor = v.mi;
+      state.pulseKey = `${r.si}:${v.mi}`;
+      render();
+    });
+    rail.appendChild(tick);
+  });
+  updateThumb();
+}
+
+function updateThumb(){
+  const page = $("page"), thumb = $("thumb"), h = $("rail").clientHeight;
+  const sh = page.scrollHeight, ch = page.clientHeight;
+  if(sh <= ch + 2){ thumb.style.height = "100%"; thumb.style.top = "0"; return; }
+  const th = Math.max(20, (ch / sh) * h);
+  thumb.style.height = th + "px";
+  thumb.style.top = ((page.scrollTop / (sh - ch)) * (h - th)) + "px";
+}
+
+function renderFooter(){
+  const pairs = state.mode === "after"
+    ? [["j/k","sessions",""], ["o","outline / full","outline"], ["v","full read","full"], ["n/N","next hit","jump"], ["/","search","search"]]
+    : [["j/k","messages",""], ["v","full","full"], ["n/N","next hit","jump"], ["/","search","search"]];
+  $("ft").innerHTML = pairs.map(([k,l,act]) =>
+    `<span class="kitem" data-act="${act}"><kbd>${k}</kbd>${l}</span>`
+  ).join("");
+}
+
+function jumpHit(next = true){
+  const rows = activeRows();
+  const r = rows[state.sel];
+  if(!r) return;
+  const ts = terms($("q").value);
+  const s = SESSIONS[r.si];
+  const hits = s.m.map((m, i) => ({m, i}))
+    .filter(({m}) => (!state.outline || state.mode === "before" || m.final) && hasAll(m.text, ts))
+    .map(x => x.i);
+  if(!hits.length) return;
+  const at = hits.indexOf(state.cursor);
+  state.cursor = hits[(at + (next ? 1 : hits.length - 1) + hits.length) % hits.length];
+  state.focus = "page";
+  state.pulseKey = `${r.si}:${state.cursor}`;
+  render();
+}
+
+/* Events */
+$("m-before").onclick = () => { state.mode = "before"; state.sel = 0; state.cursor = activeRows()[0]?.mi ?? null; render(); };
+$("m-after").onclick  = () => { state.mode = "after";  state.sel = 0; state.cursor = activeRows()[0]?.mi ?? null; render(); };
+
+$("btn-outline").onclick = () => { if(state.mode === "after"){ state.outline = !state.outline; render(); } };
+$("btn-full").onclick    = () => { state.full = !state.full; if(state.full) state.focus = "page"; render(); };
+$("btn-jump").onclick    = () => jumpHit(true);
+
+$("q").addEventListener("input", () => { state.sel = 0; search(); });
+$("q").addEventListener("focus", () => { state.focus = "q"; render(); });
+
+$("list-pane").addEventListener("click", e => {
+  const row = e.target.closest("[data-i]");
+  if(!row) return;
+  state.sel = +row.dataset.i;
+  state.focus = "list";
+  state.cursor = activeRows()[state.sel].mi;
+  $("q").blur();
+  render();
+});
+
+$("page-wrap").addEventListener("click", e => {
+  if(e.target.closest("#hd-outline")){ state.outline = !state.outline; render(); return; }
+  if(e.target.closest("[data-expand-outline]")){ state.outline = false; state.focus = "page"; render(); return; }
+  const msg = e.target.closest(".msg[data-mi]");
+  state.focus = "page";
+  $("q").blur();
+  if(msg) state.cursor = +msg.dataset.mi;
+  render();
+});
+
+$("ft").addEventListener("click", e => {
+  const act = e.target.closest("[data-act]")?.dataset.act;
+  if(act === "outline" && state.mode === "after"){ state.outline = !state.outline; render(); }
+  else if(act === "full"){ state.full = !state.full; render(); }
+  else if(act === "jump") jumpHit(true);
+  else if(act === "search"){ state.focus = "q"; $("q").focus(); render(); }
+});
+
+$("page").addEventListener("scroll", updateThumb);
+
+document.addEventListener("keydown", e => {
+  const inQ = document.activeElement === $("q");
+  if(inQ){
+    if(e.key === "ArrowDown" || e.key === "Escape"){ state.focus = "list"; $("q").blur(); render(); e.preventDefault(); }
+    return;
+  }
+  const rows = activeRows();
+  if(e.key === "j" || e.key === "ArrowDown"){
+    if(state.sel + 1 < rows.length){ state.sel++; state.cursor = rows[state.sel].mi; state.focus = "list"; render(); }
+    e.preventDefault();
+  } else if(e.key === "k" || e.key === "ArrowUp"){
+    if(state.sel === 0){ state.focus = "q"; $("q").focus(); render(); }
+    else { state.sel--; state.cursor = rows[state.sel].mi; state.focus = "list"; render(); }
+    e.preventDefault();
+  } else if(e.key === "/"){ state.focus = "q"; $("q").focus(); render(); e.preventDefault(); }
+  else if(e.key === "o" && state.mode === "after"){ state.outline = !state.outline; render(); e.preventDefault(); }
+  else if(e.key === "v"){ state.full = !state.full; if(state.full) state.focus = "page"; render(); e.preventDefault(); }
+  else if(e.key === "n"){ jumpHit(true); e.preventDefault(); }
+  else if(e.key === "N"){ jumpHit(false); e.preventDefault(); }
+});
+
+function setTheme(t){
+  document.documentElement.dataset.theme = t;
+  $("term").classList.toggle("dark", t === "dark");
+  $("tl").setAttribute("aria-pressed", t === "light");
+  $("td").setAttribute("aria-pressed", t === "dark");
+}
+$("tl").onclick = () => setTheme("light");
+$("td").onclick = () => setTheme("dark");
+setTheme(matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+
+window.addEventListener("resize", updateThumb);
+search();
+</script>
+</body>
+</html>

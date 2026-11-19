@@ -10,20 +10,19 @@ import (
 	"time"
 	"unicode"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 type palette struct {
-	hit, muted, selbg, surf, acc, key string
-	pens                              [3]string
-	agents                            map[string]string // glyph colour per harness; red stays reserved for hits
+	hit, muted, dim, selbg, pulse, surf, acc, key string
+	pens                                          [3]string
+	agents                                        map[string]string // glyph colour per harness; red stays reserved for hits
 }
 
-var light = palette{"#b6322d", "#606a74", "#d2e3f9", "#eef3f9", "#2a64b0", "#e3eaf3", [3]string{"#fde89a", "#bdfac8", "#ffe0f2"},
+var light = palette{"#b6322d", "#606a74", "#8c96a0", "#d2e3f9", "#bfd8f8", "#eef3f9", "#2a64b0", "#e3eaf3", [3]string{"#fde89a", "#bdfac8", "#ffe0f2"},
 	harnessColors(false)}
-var dark = palette{"#f6857a", "#95a0ab", "#293647", "#232a35", "#7fb0ee", "#303a49", [3]string{"#3c3207", "#193b22", "#492537"},
+var dark = palette{"#f6857a", "#95a0ab", "#68727e", "#293647", "#364b68", "#232a35", "#7fb0ee", "#303a49", [3]string{"#3c3207", "#193b22", "#492537"},
 	harnessColors(true)}
 
 type pen struct {
@@ -39,12 +38,22 @@ type model struct {
 	total, totalSessions       int
 	messages                   []message
 	hitIndex                   map[int]bool
+	topics                     map[string]string
 	sel, cursor, width, height int
 	limit                      int
 	allTime, includeSelf       bool
 	includeAutomated           bool
 	focus, full, help, mouse   bool
+	outline                    bool // O toggles outline view (user prompts + final replies + hits)
 	toolsOpen                  bool // t unfolds tool output in the transcript
+	listRatio                  float64
+	animActive                 bool
+	animListH, animTargetH     int
+	animTickID                 int
+	pulseTicks                 int
+	drag                       dragKind
+	lastTitleClick             time.Time
+	rail                       railState
 	prompt                     promptKind
 	rng                        timeRange
 	root                       string
@@ -127,14 +136,23 @@ func deleteQueryWord(q string) string {
 
 func newModel(db *sql.DB, q, h string, projects []string, rows []hit, mouse bool, limit int, includeSelf bool) model {
 	p := light
-	if os.Getenv("KIOKU_THEME") == "dark" || os.Getenv("KIOKU_THEME") == "" && termenv.HasDarkBackground() {
+	if os.Getenv("KIOKU_THEME") == "dark" {
 		p = dark
 	}
-	m := model{syncing: true, db: db, q: q, harness: h, projects: projects, rows: rows, mouse: mouse, limit: limit, includeSelf: includeSelf, pal: p, width: 80, height: 24, cursor: -1, focus: true}
-	m.initial = m.requestLoad()
+	m := model{
+		syncing: true, db: db, q: q, harness: h, projects: projects, rows: rows,
+		topics: map[string]string{}, mouse: mouse, limit: limit, includeSelf: includeSelf,
+		pal: p, width: 80, height: 24, cursor: -1, focus: true, outline: true,
+	}
+	m.initial = tea.Batch(m.requestLoad(), m.requestTopics())
 	return m
 }
-func (m model) Init() tea.Cmd { return tea.Batch(startSync(false), m.initial) }
+func (m model) Init() tea.Cmd {
+	if os.Getenv("KIOKU_THEME") == "" {
+		return tea.Batch(tea.RequestBackgroundColor, startSync(false), m.initial)
+	}
+	return tea.Batch(startSync(false), m.initial)
+}
 
 // armTick schedules the next background sync unless syncing is off or one is
 // already scheduled, so there is never more than one timer chain.
@@ -312,6 +330,35 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = x.Width
 		m.height = x.Height
+		m.animActive = false
+	case animTickMsg:
+		if x.id != m.animTickID {
+			return m, nil
+		}
+		m.stepListAnim()
+		if m.pulseTicks > 0 {
+			m.pulseTicks--
+		}
+		if m.animActive || m.pulseTicks > 0 {
+			return m, m.armAnimTick()
+		}
+		return m, nil
+	case topicsMsg:
+		if m.topics == nil {
+			m.topics = map[string]string{}
+		}
+		for uid, topic := range x.topics {
+			m.topics[uid] = topic
+		}
+		return m, nil
+	case tea.BackgroundColorMsg:
+		if os.Getenv("KIOKU_THEME") == "" {
+			if x.IsDark() {
+				m.pal = dark
+			} else {
+				m.pal = light
+			}
+		}
 	case syncEnvelope:
 		if x.x.periodic {
 			// Background syncs never move the results or interrupt typing: they
@@ -369,7 +416,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else {
 					m.sel = 0
 				}
-				return m, m.requestLoad()
+				return m, tea.Batch(m.requestLoad(), m.requestTopics())
 			}
 		}
 	case loadMsg:
@@ -382,13 +429,36 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.messages = x.messages
 				m.hitIndex = x.hits
 				m.loadedKey = x.key
+				if len(m.rows) > 0 && m.sel < len(m.rows) {
+					if topic := messagesTopic(x.messages); topic != "" {
+						if m.topics == nil {
+							m.topics = map[string]string{}
+						}
+						m.topics[m.rows[m.sel].UID] = topic
+					}
+				}
 			}
 		}
 	case openMsg:
 		m.status = string(x)
 	case tea.MouseMsg:
 		return m.mouseUpdate(x)
-	case tea.KeyMsg:
+	case tea.PasteMsg:
+		pasted := displayInline(x.Content)
+		if pasted == "" {
+			return m, nil
+		}
+		if m.prompt != promptNone {
+			m.status += pasted
+			return m, nil
+		}
+		if m.focus {
+			m.q += pasted
+			m.status = ""
+			return m, m.refresh()
+		}
+		return m, nil
+	case tea.KeyPressMsg:
 		key := x.String()
 		if key == "ctrl+c" {
 			if m.cancel != nil {
@@ -398,6 +468,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.loadCancel()
 			}
 			return m, tea.Quit
+		}
+		if key == "ctrl+f" {
+			if m.prompt != promptNone {
+				m.prompt = promptNone
+				m.status = ""
+			}
+			m.help = false
+			m.focus = true
+			return m, nil
 		}
 		if m.prompt != promptNone {
 			switch key {
@@ -425,8 +504,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "backspace":
 				m.status = trimLast(m.status)
 			default:
-				if x.Type == tea.KeyRunes || x.Type == tea.KeySpace {
-					m.status += string(x.Runes)
+				if text := keyText(x); text != "" {
+					m.status += text
 				}
 			}
 			return m, nil
@@ -474,8 +553,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.q = deleteQueryWord(m.q)
 				return m, m.refresh()
 			default:
-				if x.Type == tea.KeyRunes || x.Type == tea.KeySpace {
-					m.q += string(x.Runes)
+				if text := keyText(x); text != "" {
+					m.q += text
 					m.status = ""
 					return m, m.refresh()
 				}
@@ -484,6 +563,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.help && key != "?" {
 			m.help = false
+			if key == "/" {
+				m.focus = true
+			}
 			return m, nil
 		}
 		switch key {
@@ -508,7 +590,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "/":
 			m.focus = true
 		case "n", "N":
-			m.jump(key == "n")
+			if m.jump(key == "n") {
+				return m, m.startPulse()
+			}
 		case "pgdown", "pgup":
 			step := max(1, m.pageHeight()-2)
 			if key == "pgup" {
@@ -544,7 +628,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "D":
 			return m.setRange("")
 		case "v":
+			cur := m.listHeight()
 			m.full = !m.full
+			return m, m.startListAnim(cur, m.baseListHeight())
+		case "O":
+			m.outline = !m.outline
+			m.transcriptOffset = 0
 		case "t":
 			m.toolsOpen = !m.toolsOpen
 		case "?":
@@ -609,9 +698,9 @@ func trimLast(s string) string {
 	}
 	return s
 }
-func (m *model) jump(next bool) {
+func (m *model) jump(next bool) bool {
 	if len(m.rows) == 0 {
-		return
+		return false
 	}
 	hits := []int{}
 	for i, x := range m.messages {
@@ -620,7 +709,7 @@ func (m *model) jump(next bool) {
 		}
 	}
 	if len(hits) == 0 {
-		return
+		return false
 	}
 	at := -1
 	for i, v := range hits {
@@ -634,6 +723,7 @@ func (m *model) jump(next bool) {
 	} else {
 		m.cursor = hits[(at-1+len(hits))%len(hits)]
 	}
+	return true
 }
 func matches(text string, ts []term) bool {
 	positive := false
@@ -652,16 +742,62 @@ func matches(text string, ts []term) bool {
 	}
 	return positive
 }
-func (m model) mouseUpdate(x tea.MouseMsg) (tea.Model, tea.Cmd) {
+func keyText(k tea.KeyPressMsg) string {
+	if k.Text != "" {
+		return k.Text
+	}
+	if k.Code == tea.KeySpace && k.Mod == 0 {
+		return " "
+	}
+	return ""
+}
+func (m *model) scrubRail(ry int) {
+	m.pageLines(m.width)
+	if m.rail.visible <= 1 {
+		return
+	}
+	ry = max(0, min(m.rail.visible-1, ry))
+	if len(m.messages) > 2 {
+		m.cursor = ry * (len(m.messages) - 1) / (m.rail.visible - 1)
+		m.transcriptOffset = 0
+		return
+	}
+	if m.rail.total <= m.rail.visible {
+		return
+	}
+	maxStart := m.rail.total - m.rail.visible
+	targetStart := ry * maxStart / (m.rail.visible - 1)
+	m.transcriptOffset = targetStart - m.rail.base
+	m.pageLines(m.width)
+}
+func (m *model) applySplitY(y int) {
+	avail := max(4, m.height-5)
+	desired := y - m.headerRows() - 1
+	clamped := max(2, min(max(2, avail-4), desired))
+	m.listRatio = float64(clamped) / float64(avail)
+	m.animActive = false
+	if m.sel < m.offset {
+		m.offset = m.sel
+	}
+	if listH := m.listHeight(); listH > 0 && m.sel >= m.offset+listH {
+		m.offset = m.sel - listH + 1
+	}
+}
+func (m model) mouseUpdate(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if !m.mouse {
 		return m, nil
 	}
-	if x.Action == tea.MouseActionPress && x.Button == tea.MouseButtonLeft {
-		if x.Y == 0 {
+	l := m.layout()
+	switch x := msg.(type) {
+	case tea.MouseClickMsg:
+		if x.Button != tea.MouseLeft {
+			return m, nil
+		}
+		if l.header.contains(x.X, x.Y) {
 			m.focus = true
 			return m, nil
 		}
-		if x.Y == 1 && len(m.pens) > 0 {
+		if l.pens.contains(x.X, x.Y) {
 			col := len("  highlights ")
 			for i, p := range m.pens {
 				w := displayWidth(displayInline(p.word)) + 2
@@ -673,10 +809,8 @@ func (m model) mouseUpdate(x tea.MouseMsg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		top := m.headerRows()
-		listH := m.listHeight()
-		if !m.full && x.Y >= top && x.Y < top+listH {
-			i := m.offset + x.Y - top
+		if l.list.contains(x.X, x.Y) {
+			i := m.offset + x.Y - l.list.y
 			if i < len(m.rows) {
 				m.sel = i
 				m.focus = false
@@ -685,14 +819,57 @@ func (m model) mouseUpdate(x tea.MouseMsg) (tea.Model, tea.Cmd) {
 			m.focus = false
 			return m, nil
 		}
+		if l.titleBar.contains(x.X, x.Y) {
+			m.focus = false
+			if !m.full {
+				now := time.Now()
+				if !m.lastTitleClick.IsZero() && now.Sub(m.lastTitleClick) < 350*time.Millisecond {
+					m.listRatio = 0
+					m.animActive = false
+					m.lastTitleClick = time.Time{}
+					return m, nil
+				}
+				m.lastTitleClick = now
+				m.drag = dragSplit
+			}
+			return m, nil
+		}
+		if l.rail.contains(x.X, x.Y) {
+			m.focus = false
+			m.pageLines(m.width)
+			ry := x.Y - l.rail.y
+			if idx, ok := m.rail.hitRows[ry]; ok {
+				m.cursor = idx
+				m.transcriptOffset = 0
+				return m, m.startPulse()
+			}
+			m.drag = dragRail
+			m.scrubRail(ry)
+			return m, nil
+		}
 		m.focus = false
-	}
-	if x.Button == tea.MouseButtonWheelDown || x.Button == tea.MouseButtonWheelUp {
+	case tea.MouseMotionMsg:
+		switch m.drag {
+		case dragSplit:
+			if !m.full {
+				m.applySplitY(x.Y)
+			}
+		case dragRail:
+			if l.rail.h > 0 {
+				m.scrubRail(x.Y - l.rail.y)
+			}
+		}
+	case tea.MouseReleaseMsg:
+		m.drag = dragNone
+	case tea.MouseWheelMsg:
+		if x.Button != tea.MouseWheelDown && x.Button != tea.MouseWheelUp {
+			return m, nil
+		}
 		step := 3
-		if x.Button == tea.MouseButtonWheelUp {
+		if x.Button == tea.MouseWheelUp {
 			step = -3
 		}
-		if x.Y < m.headerRows()+m.listHeight() && !m.full {
+		if x.Y < m.headerRows()+m.listHeight() && m.listHeight() > 0 {
 			m.offset = max(0, min(max(0, len(m.rows)-m.listHeight()), m.offset+step))
 		} else if !m.help {
 			m.transcriptOffset += step
@@ -718,18 +895,21 @@ func (m model) headerRows() int {
 	return 2
 }
 
-// chromeRows counts the header, list gap (unless full), and footer.
+// chromeRows counts the header, list gap (when list is visible), and footer.
 func (m model) chromeRows() int {
-	if m.full {
+	if m.listHeight() == 0 {
 		return m.headerRows() + 1
 	}
 	return m.headerRows() + 2
 }
 func (m model) listHeight() int {
-	if m.full || m.help {
+	if m.help {
 		return 0
 	}
-	return max(2, (m.height-5)*38/100)
+	if m.animActive {
+		return max(0, m.animListH)
+	}
+	return m.baseListHeight()
 }
 func (m model) color(s, c string) string {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(c)).Render(displayInline(s))
