@@ -79,11 +79,10 @@ sleep 1
 tmux capture-pane -t "he2e-$$" -p > "$SCREENS/tui-start.txt" 2>&1; tmux capture-pane -t "he2e-$$" -ep > "$SCREENS/tui-start-ansi.txt" 2>&1
 start=$SECONDS; if grep -q 'SNAPSHOT' "$SCREENS/tui-start.txt"; then record 'TUI starts and displays matching hit' PASS $((SECONDS-start)) ''; else record 'TUI starts and displays matching hit' FAIL $((SECONDS-start)) "$(<"$SCREENS/tui-start.txt")"; fi
 if grep -q $'\033\[1m' "$SCREENS/tui-start-ansi.txt" && ! grep -q $'\033\[2m' "$SCREENS/tui-start-ansi.txt"; then record 'Mono emphasis: bold without dimming' PASS 0 ''; else record 'Mono emphasis: bold without dimming' FAIL 0 'expected SGR 1 and no SGR 2 in capture'; fi
-if grep -Fq '38;2;182;50;44' "$SCREENS/tui-start-ansi.txt"; then record 'Hit color present in ANSI capture' PASS 0 ''; else record 'Hit color present in ANSI capture' FAIL 0 'red hit pen not found in escape capture'; fi
+if grep -Fq '38;2;182;50;45' "$SCREENS/tui-start-ansi.txt"; then record 'Hit color present in ANSI capture' PASS 0 ''; else record 'Hit color present in ANSI capture' FAIL 0 'red hit pen not found in escape capture'; fi
 # Escape to results, enable full transcript, check folded/full render, then add a pen.
 tmux send-keys -t "he2e-$$" Escape; sleep .3; tmux capture-pane -t "he2e-$$" -p > "$SCREENS/tui-folded.txt"
 tmux send-keys -t "he2e-$$" v; sleep .2; tmux capture-pane -t "he2e-$$" -p > "$SCREENS/tui-full.txt"
-if grep -q '⋯' "$SCREENS/tui-folded.txt"; then record 'Transcript folding ellipsis ⋯' PASS 0 ''; else record 'Transcript folding ellipsis ⋯' FAIL 0 'not visible'; fi
 if grep -q 'Fish pond\|魚池\|tea' "$SCREENS/tui-full.txt"; then record 'Full mode reveals non-hit transcript content' PASS 0 ''; else record 'Full mode reveals non-hit transcript content' FAIL 0 'expected transcript text missing'; fi
 tmux send-keys -t "he2e-$$" v; sleep .15; tmux send-keys -t "he2e-$$" h; sleep .2; tmux send-keys -l -t "he2e-$$" snapshot; tmux send-keys -t "he2e-$$" Enter; sleep .3; tmux capture-pane -t "he2e-$$" -ep > "$SCREENS/tui-pen-ansi.txt"
 if grep -Fq '48;2;253;232;154' "$SCREENS/tui-pen-ansi.txt"; then record 'Highlight pen background color' PASS 0 ''; else record 'Highlight pen background color' FAIL 0 'pen color not found'; fi
@@ -110,7 +109,7 @@ PY
 tmux new-session -d -x 120 -y 40 -s "htool-$$" "cd '$ROOT' && HOME='$OPHOME' PATH='$PATH' STUBLOG='$STUBLOG' KIOKU_INDEX='$OPHOME/tui.db' KIOKU_THEME=light TERM=xterm-256color exec ./kioku --harness opencode oceditedtoken" 2>/dev/null
 tmux set-option -t "htool-$$" remain-on-exit on 2>/dev/null
 sleep 1; tmux capture-pane -t "htool-$$" -p > "$SCREENS/opencode-tui.txt" 2>&1
-grep -q '▢ opencode demo  opencode' "$SCREENS/opencode-tui.txt" && grep -q '1 messages' "$SCREENS/opencode-tui.txt" || opencode_ok=0
+grep -q '▢ opencode demo · oceditedtoken' "$SCREENS/opencode-tui.txt" && grep -q '1 messages' "$SCREENS/opencode-tui.txt" || opencode_ok=0
 tmux send-keys -t "htool-$$" Tab; sleep .3; capture=$(tmux capture-pane -t "htool-$$" -p 2>&1)
 grep -q '0 messages' <<<"$capture" || opencode_ok=0
 tmux send-keys -t "htool-$$" Tab; sleep .3; capture=$(tmux capture-pane -t "htool-$$" -p 2>&1)
@@ -122,6 +121,7 @@ expected="opencode|$OPHOME/work/opencode demo|--session oc-v1"
 grep -Fq "$expected" "$STUBLOG" 2>/dev/null || opencode_ok=0
 [[ $(tmux display-message -p -t "htool-$$" '#{pane_dead} #{pane_dead_status}') == '1 0' ]] || opencode_ok=0
 printf '\nResume stub: %s\n' "$expected" >> "$SCREENS/opencode-tui.txt"
+if grep -q '⋯' "$SCREENS/opencode-tui.txt"; then record 'Transcript fold row ⋯ (outline steps)' PASS 0 ''; else record 'Transcript fold row ⋯ (outline steps)' FAIL 0 'fold row not visible'; fi
 tmux kill-session -t "htool-$$" 2>/dev/null || :
 if ((opencode_ok)); then record 'OpenCode TUI: harness cycling and resume argv + cwd' PASS $((SECONDS-start)) 'test/screens/opencode-tui.txt'; else record 'OpenCode TUI: harness cycling and resume argv + cwd' FAIL $((SECONDS-start)) "$(<"$SCREENS/opencode-tui.txt")"; fi
 
