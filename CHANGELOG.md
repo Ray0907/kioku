@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.13.0 - 2026-11-19
+## v0.13.1 - 2026-11-19
 
 ### Added
 - TUI moved to Bubble Tea v2 and Lip Gloss v2 (native terminal cursor for IME, bracketed paste, dark/light detection). New: session topics in the browse list and preview header, `O` outline, `ctrl+f` to jump to search from anywhere, a reading width capped at 84 cells with unfocused zones dimmed, a draggable title-bar splitter, and a one-cell hit-map rail with click-to-jump and drag-to-scrub.
