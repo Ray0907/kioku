@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -55,10 +56,10 @@ func (m model) View() tea.View {
 	}
 	strong := lipgloss.NewStyle().Bold(true)
 	q := "  " + strong.Foreground(lipgloss.Color(m.pal.muted)).Render("kioku") + " ▸ "
-	input := displayInline(m.q)
 	right := m.color(clip(count, max(0, w-displayWidth(q)-4)), m.pal.muted)
 	inputW := max(0, w-displayWidth(q)-displayWidth(right)-2)
-	shownInput := clip(input, max(0, inputW-2))
+	p := []rune(m.q)[:m.caret()]
+	shownInput, caretX := queryWindow(displayInline(string(p)), displayInline(string([]rune(m.q)[m.caret():])), max(0, inputW-2))
 	b.WriteString(m.bgRow(q+pad(strong.Render(shownInput), inputW)+right+"  ", w, m.pal.surf) + "\n")
 	if len(m.pens) > 0 {
 		ps := m.color("  highlights ", m.pal.muted)
@@ -71,13 +72,15 @@ func (m model) View() tea.View {
 	listH := m.listHeight()
 	if listH > 0 {
 		browse := toFTS(m.q) == ""
+		var empty []string
+		if len(m.rows) == 0 {
+			empty = m.emptyHints()
+		}
 		for i := 0; i < listH; i++ {
 			idx := m.offset + i
 			if idx >= len(m.rows) {
-				if idx == 0 && m.rng.active() {
-					b.WriteString(m.color("  No message in this date range. Press D to clear it.", m.pal.muted))
-				} else if idx == 0 {
-					b.WriteString(m.color("  No message contains all of these words. Drop a word or remove the quotes.", m.pal.muted))
+				if idx < len(empty) {
+					b.WriteString(m.color("  "+empty[idx], m.pal.muted))
 				}
 				b.WriteString("\n")
 				continue
@@ -118,6 +121,9 @@ func (m model) View() tea.View {
 			row := " " + cursor + " " + agent + " " + pad(body, sw) + pad(project, pjW) + when + "  "
 			if band {
 				row = m.selectionRow(row, w)
+			}
+			if m.pending() {
+				row = faint(row)
 			}
 			b.WriteString(clipANSI(row, w) + "\n")
 		}
@@ -165,7 +171,7 @@ func (m model) View() tea.View {
 		cur.Blink = true
 		v.Cursor = cur
 	} else if m.focus {
-		cur := tea.NewCursor(min(w-1, displayWidth(q)+displayWidth(shownInput)), 0)
+		cur := tea.NewCursor(min(w-1, displayWidth(q)+caretX), 0)
 		cur.Shape = tea.CursorBar
 		cur.Blink = true
 		v.Cursor = cur
@@ -203,7 +209,11 @@ func clipANSI(s string, w int) string {
 	if plain == short {
 		return s
 	}
-	return ansi.Truncate(s, displayWidth(strings.TrimSuffix(short, "…"))+1, "…") + "\x1b[0m"
+	out := ansi.Truncate(s, displayWidth(strings.TrimSuffix(short, "…"))+1, "…") + "\x1b[0m"
+	if strings.Count(out, "\x1b]8;")%2 == 1 {
+		out += ansi.ResetHyperlink() // a cut link must not stay open over the rest of the screen
+	}
+	return out
 }
 func fitLine(s string, w int) string {
 	s = clipANSI(s, w)
@@ -245,8 +255,11 @@ func (m *model) pageLines(w int) []string {
 			"  query    space = AND · quotes = phrase · -word = exclude",
 			"  ↓ / esc search to results    / or ctrl+f back to search",
 			"  ↑ / k   previous result    ↓ / j next result",
-			"  backspace delete character    ctrl+u clear query",
+			"  left / right  or ctrl+b / ctrl+f move caret    home / end  or ctrl+a / ctrl+e line start / end",
+			"  alt+left / alt+right jump a word (Latin or CJK)    delete  delete forward",
+			"  backspace delete before caret    ctrl+u delete to line start",
 			"  ctrl+w  delete previous query word (Latin or CJK)",
+			"  ↑ / ↓   in an empty query, walk query history",
 			"  r       sync the index, then re-run the search",
 			"  n / N   next / previous hit in transcript",
 			"  pgup / pgdown scroll transcript by a page · wheel scrolls lines",
@@ -284,7 +297,7 @@ func (m *model) pageLines(w int) []string {
 	if topic != "" {
 		left += m.color(" · ", m.pal.muted) + displayInline(topic) + "  " + m.color(sel.Harness+" · "+sel.TS[:min(10, len(sel.TS))], m.pal.muted)
 	} else {
-		left += "  " + m.color(sel.Harness+"  "+sel.TS[:min(10, len(sel.TS))]+"  "+cwd, m.pal.muted)
+		left += "  " + m.color(sel.Harness+"  "+sel.TS[:min(10, len(sel.TS))]+"  ", m.pal.muted) + m.pathLink(sel.CWD, cwd)
 	}
 	active := toFTS(m.q) != ""
 	count := fmt.Sprintf("result %d of %d", m.sel+1, len(m.rows))
@@ -658,6 +671,69 @@ func wrap(s string, w int) []string {
 		if len(out) == first {
 			out = append(out, "")
 		}
+	}
+	return out
+}
+
+// pending reports that the rows on screen belong to an older query than the one typed.
+func (m model) pending() bool { return m.resultRev != m.revision }
+
+// faint dims a rendered row without losing the styles inside it.
+func faint(s string) string {
+	on := "\x1b[2m"
+	s = strings.ReplaceAll(s, "\x1b[m", "\x1b[m"+on)
+	s = strings.ReplaceAll(s, "\x1b[0m", "\x1b[0m"+on)
+	return on + s + "\x1b[22m"
+}
+
+// pathLink shows shown as a muted OSC 8 link to the directory on disk.
+func (m model) pathLink(dir, shown string) string {
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color(m.pal.muted))
+	if dir != "" {
+		style = style.Hyperlink((&url.URL{Scheme: "file", Path: dir}).String())
+	}
+	return style.Render(displayInline(shown))
+}
+
+// emptyHints names why nothing matched and lists only the fixes that apply to the current state.
+func (m model) emptyHints() []string {
+	var out []string
+	switch {
+	case m.rng.active():
+		out = append(out, "No message in this date range. Press D to clear it.")
+	case toFTS(m.q) != "":
+		out = append(out, "No message contains all of these words.")
+	}
+	var positive, phrases int
+	var negatives []string
+	for _, t := range terms(m.q) {
+		switch {
+		case t.Negative:
+			negatives = append(negatives, "-"+t.Word)
+		case t.Phrase:
+			phrases++
+			positive++
+		default:
+			positive++
+		}
+	}
+	if positive > 1 {
+		out = append(out, "Drop a word to match more messages.")
+	}
+	if phrases > 0 {
+		out = append(out, "A phrase must match exactly; remove the quotes to match the words anywhere.")
+	}
+	if len(negatives) > 0 {
+		out = append(out, "Remove "+strings.Join(negatives, " ")+" to allow messages that mention it.")
+	}
+	if m.rng.active() && toFTS(m.q) != "" {
+		out = append(out, "Press d to widen the date range.")
+	}
+	if m.root != "" {
+		out = append(out, "Press p to remove the project scope.")
+	}
+	if m.harness != "" && m.harness != "all" {
+		out = append(out, "Press tab to search all agents.")
 	}
 	return out
 }

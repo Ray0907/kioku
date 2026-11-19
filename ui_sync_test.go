@@ -159,7 +159,7 @@ func TestRefreshKeySyncsThenRequeries(t *testing.T) {
 		t.Fatal("r during a running sync must do nothing")
 	}
 	// in the search box r is just a letter
-	m.focus = true
+	m.focus, m.qpos = true, len([]rune(m.q))
 	next, _ = m.Update(keyRunes("r"))
 	if g := next.(model); g.q != m.q+"r" || g.syncing {
 		t.Fatalf("in the search box r is a letter: q=%q", g.q)

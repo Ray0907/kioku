@@ -5,10 +5,11 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -20,9 +21,9 @@ type palette struct {
 	agents                                        map[string]string // glyph colour per harness; red stays reserved for hits
 }
 
-var light = palette{"#b6322d", "#606a74", "#8c96a0", "#d2e3f9", "#bfd8f8", "#eef3f9", "#2a64b0", "#e3eaf3", [3]string{"#fde89a", "#bdfac8", "#ffe0f2"},
+var light = palette{"#b6322d", "#56606a", "#727c87", "#d2e3f9", "#bfd8f8", "#eef3f9", "#2a64b0", "#e3eaf3", [3]string{"#fde89a", "#bdfac8", "#ffe0f2"},
 	harnessColors(false)}
-var dark = palette{"#f6857a", "#95a0ab", "#68727e", "#293647", "#364b68", "#232a35", "#7fb0ee", "#303a49", [3]string{"#3c3207", "#193b22", "#492537"},
+var dark = palette{"#f6857a", "#95a0ab", "#7a8591", "#293647", "#364b68", "#232a35", "#7fb0ee", "#303a49", [3]string{"#3c3207", "#193b22", "#492537"},
 	harnessColors(true)}
 
 type pen struct {
@@ -32,6 +33,8 @@ type pen struct {
 type model struct {
 	db                         *sql.DB
 	q                          string
+	qpos, hist                 int      // caret (rune index into q); steps back in history, 0 = not walking
+	history                    []string // oldest first, loaded by main and saved on exit
 	harness                    string
 	projects                   []string
 	rows                       []hit
@@ -57,7 +60,7 @@ type model struct {
 	prompt                     promptKind
 	rng                        timeRange
 	root                       string
-	scopeSelection             *hit
+	resultRev                  int // revision of the newest query whose result is on screen
 	pens                       []pen
 	status                     string
 	revision                   int
@@ -121,19 +124,6 @@ func parseSyncEvery(s string) (time.Duration, error) {
 
 type debounce int
 
-func deleteQueryWord(q string) string {
-	runes := []rune(strings.TrimRightFunc(q, unicode.IsSpace))
-	i := len(runes)
-	if i == 0 {
-		return ""
-	}
-	cjk := isCJK(runes[i-1])
-	for i > 0 && !unicode.IsSpace(runes[i-1]) && isCJK(runes[i-1]) == cjk {
-		i--
-	}
-	return string(runes[:i])
-}
-
 func newModel(db *sql.DB, q, h string, projects []string, rows []hit, mouse bool, limit int, includeSelf bool) model {
 	p := light
 	if os.Getenv("KIOKU_THEME") == "dark" {
@@ -143,6 +133,7 @@ func newModel(db *sql.DB, q, h string, projects []string, rows []hit, mouse bool
 		syncing: true, db: db, q: q, harness: h, projects: projects, rows: rows,
 		topics: map[string]string{}, mouse: mouse, limit: limit, includeSelf: includeSelf,
 		pal: p, width: 80, height: 24, cursor: -1, focus: true, outline: true,
+		qpos: utf8.RuneCountInString(q),
 	}
 	m.initial = tea.Batch(m.requestLoad(), m.requestTopics())
 	return m
@@ -397,24 +388,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.requestQuery()
 	case resultMsg:
 		if x.revision == m.revision {
+			m.resultRev = x.revision
 			if x.err != nil {
 				if x.err != context.Canceled {
 					m.status = x.err.Error()
 				}
 			} else {
+				var prev hit // keep the same message if it is still listed, else the same session
+				if m.sel < len(m.rows) {
+					prev = m.rows[m.sel]
+				}
 				m.rows = x.rows
 				m.total, m.totalSessions = x.total, x.totalSessions
-				if m.scopeSelection != nil {
-					m.sel = min(m.sel, max(0, len(m.rows)-1))
-					for i, h := range m.rows {
-						if h.ID == m.scopeSelection.ID {
-							m.sel = i
-							break
-						}
+				m.sel = 0
+				for _, same := range []func(hit) bool{
+					func(h hit) bool { return prev.ID != 0 && h.ID == prev.ID },
+					func(h hit) bool { return prev.UID != "" && h.UID == prev.UID },
+				} {
+					if i := slices.IndexFunc(m.rows, same); i >= 0 {
+						m.sel = i
+						break
 					}
-					m.scopeSelection = nil
-				} else {
-					m.sel = 0
 				}
 				return m, tea.Batch(m.requestLoad(), m.requestTopics())
 			}
@@ -453,7 +447,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if m.focus {
-			m.q += pasted
+			m.insertAtCaret(pasted)
 			m.status = ""
 			return m, m.refresh()
 		}
@@ -469,7 +463,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, tea.Quit
 		}
-		if key == "ctrl+f" {
+		if key == "ctrl+f" && (!m.focus || m.prompt != promptNone) {
 			if m.prompt != promptNone {
 				m.prompt = promptNone
 				m.status = ""
@@ -527,6 +521,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.requestQuery()
 		}
 		if key == "enter" {
+			m.remember()
 			if len(m.rows) > 0 {
 				r := m.rows[m.sel]
 				if _, e := os.Stat(r.CWD); e != nil {
@@ -540,23 +535,30 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.focus {
 			switch key {
-			case "down", "esc":
-				m.focus = false
-			case "backspace":
-				m.q = trimLast(m.q)
-				m.status = ""
-				return m, m.refresh()
-			case "ctrl+u":
-				m.q = ""
-				return m, m.refresh()
-			case "ctrl+w":
-				m.q = deleteQueryWord(m.q)
-				return m, m.refresh()
-			default:
-				if text := keyText(x); text != "" {
-					m.q += text
+			case "up", "down":
+				if m.historyKey(key) {
 					m.status = ""
 					return m, m.refresh()
+				}
+				if key == "down" {
+					m.remember()
+					m.focus = false
+				}
+			case "esc":
+				m.remember()
+				m.focus = false
+			default:
+				handled, edited := m.queryKey(key)
+				if edited {
+					m.status = ""
+					return m, m.refresh()
+				}
+				if !handled {
+					if text := keyText(x); text != "" {
+						m.insertAtCaret(text)
+						m.status = ""
+						return m, m.refresh()
+					}
 				}
 			}
 			return m, nil
@@ -616,10 +618,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.root = root
 			m.status = ""
-			if len(m.rows) > 0 {
-				selected := m.rows[m.sel]
-				m.scopeSelection = &selected
-			}
 			m.revision++
 			return m, m.requestQuery()
 		case "d":

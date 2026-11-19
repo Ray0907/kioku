@@ -353,11 +353,14 @@ func run() error {
 	m.root = root
 	m.allTime = *opts.allTime
 	m.includeAutomated = *opts.includeAutomated
+	m.history = loadHistory()
 	final, e := tea.NewProgram(m).Run()
 	if e != nil {
 		return e
 	}
 	fm := final.(model)
+	fm.remember()
+	saveHistory(fm.history)
 	if fm.resume != nil {
 		return execSession(*fm.resume)
 	}

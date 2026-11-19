@@ -210,7 +210,7 @@ func TestJumpBackToSearchBox(t *testing.T) {
 func TestBubbleTeaV2CursorPasteAndTheme(t *testing.T) {
 	m := lookModel(true)
 	m.mouse = true
-	m.q = "紅茶"
+	m.q, m.qpos = "紅茶", 2
 	v := m.View()
 	if !v.AltScreen || v.MouseMode != tea.MouseModeCellMotion {
 		t.Fatalf("view flags: alt=%v mouse=%v", v.AltScreen, v.MouseMode)

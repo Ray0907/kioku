@@ -156,6 +156,7 @@ func TestTranscriptScrollKeepsListWheelAndQueryKeys(t *testing.T) {
 	if ansi.Strip(m.View().Content) != before {
 		t.Fatal("PgDn scrolls while editing the query")
 	}
+	m.qpos = len([]rune(m.q))
 	m = scrollUpdate(m, tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	if m.q != "" {
 		t.Fatal("ctrl+u no longer clears the query")
