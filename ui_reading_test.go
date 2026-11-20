@@ -58,7 +58,7 @@ func TestOutlineModeHidesIntermediateStepsAndKeepsHits(t *testing.T) {
 	if strings.Contains(v, "intermediate narration step") || strings.Contains(v, "go test -bench=.") {
 		t.Fatalf("outline must fold intermediate steps and tools:\n%s", v)
 	}
-	if !strings.Contains(v, "2 steps · O shows all") || !strings.Contains(v, "outline") {
+	if !strings.Contains(v, "2 steps") || !strings.Contains(v, "outline") {
 		t.Fatalf("outline must indicate folded steps and outline badge:\n%s", v)
 	}
 

@@ -108,12 +108,12 @@ func (m *model) pageLines(w int) []string {
 	prev, folded, skipped := -1, start > 0, start
 	foldRow := func(n int) string {
 		if n <= 0 {
-			return m.color("           ⋯", m.pal.muted)
+			return m.color("           ⋯", m.pal.dim)
 		}
 		if m.outline {
-			return m.color(fmt.Sprintf("           ⋯ %d steps · O shows all", n), m.pal.muted)
+			return m.color(fmt.Sprintf("           ⋯ %d steps", n), m.pal.dim)
 		}
-		return m.color(fmt.Sprintf("           ⋯ %d hidden · v shows all", n), m.pal.muted)
+		return m.color(fmt.Sprintf("           ⋯ %d hidden", n), m.pal.dim)
 	}
 	for i := start; i < end; i++ {
 		if !keep[i] {
