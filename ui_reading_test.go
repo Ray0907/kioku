@@ -258,3 +258,22 @@ func TestOutlineCapsContextMessages(t *testing.T) {
 		t.Fatalf("the selected message must show whole:\n%s", v)
 	}
 }
+
+// The title bar reports reading progress by characters, not by message count.
+func TestTranscriptTitleShowsReadPercent(t *testing.T) {
+	m := lookModel(false)
+	m.width, m.height = 100, 30
+	m.q = ""
+	m.hitIndex = map[int]bool{}
+	m.messages = []message{
+		{Index: 0, Role: "user", Text: strings.Repeat("a", 100), TS: "2026-11-18T10:00:00Z"},
+		{Index: 1, Role: "assistant", Text: strings.Repeat("b", 300), TS: "2026-11-18T10:01:00Z"},
+	}
+	for cursor, want := range map[int]string{0: "25%", 1: "100%"} {
+		m.cursor = cursor
+		v := ansi.Strip(m.View().Content)
+		if !strings.Contains(v, want) || strings.Contains(v, "result ") {
+			t.Fatalf("cursor %d: want %s and no result count:\n%s", cursor, want, v)
+		}
+	}
+}

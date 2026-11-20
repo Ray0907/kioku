@@ -7,6 +7,7 @@
 - TUI: result snippets stop two columns earlier, leaving a clear gutter before the project column.
 - TUI: typing no longer flashes the screen: the preview stays until the new results arrive, old rows dim only when a query runs longer than 250 ms, and only the last keystroke starts a search.
 - TUI: in the outline, messages that are neither selected nor a hit stop after three lines (a `…` marks the cut); the selected message and hits stay whole.
+- TUI: the preview title shows how far through the session you are as a percentage of its text, instead of `result N of M`.
 - TUI: a tall window gives the result list half of its height.
 
 ## v0.15.1 - 2026-11-20

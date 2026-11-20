@@ -272,7 +272,7 @@ func (m *model) pageLines(w int) []string {
 		left += "  " + m.color(sel.Harness+"  "+sel.TS[:min(10, len(sel.TS))]+"  ", m.pal.muted) + m.pathLink(sel.CWD, cwd)
 	}
 	active := toFTS(m.q) != ""
-	count := fmt.Sprintf("result %d of %d", m.sel+1, len(m.rows))
+	count := m.readPercent()
 	if active {
 		hits := 0
 		for _, hit := range m.hitIndex {
@@ -284,7 +284,10 @@ func (m *model) pageLines(w int) []string {
 		if hits == 1 {
 			noun = "hit"
 		}
-		count += fmt.Sprintf(" · %d %s here", hits, noun)
+		if count != "" {
+			count += " · "
+		}
+		count += fmt.Sprintf("%d %s here", hits, noun)
 	}
 	outlineTag := ""
 	if m.outline {
@@ -710,4 +713,24 @@ func (m model) emptyHints() []string {
 		out = append(out, "Press tab to search all agents.")
 	}
 	return out
+}
+
+// readPercent says how far through the session's text the selected message ends. It counts
+// characters, not messages, because messages differ wildly in length.
+func (m model) readPercent() string {
+	if m.cursor < 0 || m.cursor >= len(m.messages) {
+		return ""
+	}
+	total, upto := 0, 0
+	for i, x := range m.messages {
+		n := utf8.RuneCountInString(x.Text)
+		total += n
+		if i <= m.cursor {
+			upto += n
+		}
+	}
+	if total == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d%%", upto*100/total)
 }
