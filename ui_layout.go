@@ -104,6 +104,9 @@ func (m model) baseListHeight() int {
 		h := int(float64(avail)*m.listRatio + 0.5)
 		return max(2, min(max(2, avail-4), h))
 	}
+	if avail >= 24 { // a tall window has room to give the result list half of it
+		return max(2, avail/2)
+	}
 	return max(2, avail*38/100)
 }
 
