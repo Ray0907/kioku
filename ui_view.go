@@ -97,7 +97,7 @@ func (m model) View() tea.View {
 					raw = topic
 				}
 			}
-			sn := clip(tidySnippet(displayInline(raw)), max(1, sw-2))
+			sn := clip(tidySnippet(displayInline(raw)), max(1, sw-4))
 			cursor := " "
 			agent := m.agentGlyph(x.Harness)
 			metaColor := m.pal.muted

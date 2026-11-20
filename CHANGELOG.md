@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- TUI: hit words use a plain underline instead of a curly one, which read as noise on long result lists.
+- TUI: result snippets stop two columns earlier, leaving a clear gutter before the project column.
+- TUI: a tall window gives the result list half of its height.
+
 ## v0.15.1 - 2026-11-20
 
 ### Fixed

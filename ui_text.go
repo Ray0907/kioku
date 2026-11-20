@@ -140,7 +140,7 @@ func (m model) paint(s string, query, selected bool) string {
 				style = style.Bold(true)
 			}
 			if h[i] {
-				style = style.Foreground(lipgloss.Color(m.pal.hit)).UnderlineStyle(lipgloss.UnderlineCurly).UnderlineColor(lipgloss.Color(m.pal.hit)).Bold(true)
+				style = style.Foreground(lipgloss.Color(m.pal.hit)).Underline(true).Bold(true)
 			}
 			if marks[i] >= 0 {
 				style = style.Background(lipgloss.Color(m.pal.pens[marks[i]]))

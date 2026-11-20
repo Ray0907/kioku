@@ -38,15 +38,15 @@ func TestCursorByMode(t *testing.T) {
 	}
 }
 
-// B2: hit words get a curly underline in the hit colour, never a background or reverse video,
+// B2: hit words get a plain underline in the hit colour, never a background or reverse video,
 // so the selected row's band and the hit mark do not collide.
-func TestHitsUseCurlyUnderline(t *testing.T) {
+func TestHitsUseUnderline(t *testing.T) {
 	m := lookModel(false)
 	m.q = "world"
 	for _, selected := range []bool{false, true} {
 		out := m.paint("hello world", true, selected)
-		if !strings.Contains(out, "4:3") || !strings.Contains(out, "58;2;246;133;122") {
-			t.Fatalf("selected=%v: want curly underline in the hit colour: %q", selected, out)
+		if strings.Contains(out, "4:3") || !strings.Contains(out, "38;2;246;133;122") || !strings.Contains(out, ";4;") && !strings.Contains(out, "[4;") && !strings.Contains(out, ";4m") {
+			t.Fatalf("selected=%v: want a plain (not curly) underline in the hit colour: %q", selected, out)
 		}
 		if strings.Contains(out, ";7m") || strings.Contains(out, "[7m") || strings.Contains(out, "48;") {
 			t.Fatalf("selected=%v: hit must not use reverse or a background: %q", selected, out)
