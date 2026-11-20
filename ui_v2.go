@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/url"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -62,4 +63,13 @@ func (m model) helpRect() rect {
 	}
 	x0, y0, bw, bh := helpBox(inner, len(lines), m.width, m.height)
 	return rect{x: x0, y: y0, w: bw, h: bh}
+}
+
+// The popup grows open over helpFrames short ticks so it reads as arriving rather than blinking in.
+const helpFrames = 3
+
+type helpTickMsg struct{}
+
+func helpTick() tea.Cmd {
+	return tea.Tick(35*time.Millisecond, func(time.Time) tea.Msg { return helpTickMsg{} })
 }

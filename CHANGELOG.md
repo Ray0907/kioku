@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.15.0 - 2026-11-20
+
+### Changed
+- TUI: the `?` help popup is easier to scan: group titles in the accent colour, keys in bold, descriptions muted, groups separated, and the screen behind it dimmed so only the popup reads as active.
+- TUI: the popup opens over three short frames instead of appearing at once.
+
 ## v0.14.0 - 2026-11-20
 
 ### Added

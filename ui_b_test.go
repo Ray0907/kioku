@@ -373,3 +373,20 @@ func TestProjectNameLinksToDirectory(t *testing.T) {
 		t.Fatalf("no OSC 8 link on the title: %q", joined)
 	}
 }
+
+func TestHelpOpensOverFrames(t *testing.T) {
+	m := lookModel(false)
+	m.width, m.height, m.help = 100, 30, true
+	full := strings.Count(ansi.Strip(m.View().Content), "Results")
+	m.helpAnim = helpFrames
+	if strings.Contains(ansi.Strip(m.View().Content), "Transcript") {
+		t.Fatal("first frame must show only the top of the popup")
+	}
+	for i := 0; i < helpFrames; i++ {
+		next, _ := m.Update(helpTickMsg{})
+		m = next.(model)
+	}
+	if m.helpAnim != 0 || strings.Count(ansi.Strip(m.View().Content), "Results") != full {
+		t.Fatalf("popup must be fully open after %d ticks (anim=%d)", helpFrames, m.helpAnim)
+	}
+}

@@ -47,6 +47,7 @@ type model struct {
 	allTime, includeSelf       bool
 	includeAutomated           bool
 	focus, full, help, mouse   bool
+	helpAnim                   int  // frames left of the popup opening; 0 = fully open
 	outline                    bool // O toggles outline view (user prompts + final replies + hits)
 	toolsOpen                  bool // t unfolds tool output in the transcript
 	listRatio                  float64
@@ -377,6 +378,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(m.requestQuery(), m.armTick())
 		}
 		return m, waitSync(x.ch)
+	case helpTickMsg:
+		if m.helpAnim > 0 {
+			m.helpAnim--
+		}
+		if m.helpAnim > 0 && m.help {
+			return m, helpTick()
+		}
+		return m, nil
 	case tea.FocusMsg:
 		return m.onFocus(true)
 	case tea.BlurMsg:
@@ -646,6 +655,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.toolsOpen = !m.toolsOpen
 		case "?":
 			m.help = !m.help
+			if m.help {
+				m.helpAnim = helpFrames
+				return m, helpTick()
+			}
 		case "r": // sync the index, then re-run the search
 			if m.syncing {
 				return m, nil

@@ -86,7 +86,8 @@ func (m model) overlayHelp(rows []string, w int) []string {
 	for _, l := range lines {
 		inner = max(inner, displayWidth(l))
 	}
-	x0, y0, boxW, boxH := helpBox(inner, len(lines), w, len(rows))
+	shown := len(lines) - len(lines)*m.helpAnim/(helpFrames+1) // opening: reveal the lines from the top
+	x0, y0, boxW, boxH := helpBox(inner, max(shown, 1), w, len(rows))
 	if boxW < 12 || boxH < 3 {
 		return rows
 	}
