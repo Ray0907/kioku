@@ -5,6 +5,7 @@ import (
 	"math"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -243,5 +244,132 @@ func TestPendingResultsStayFaintAndKeepSelection(t *testing.T) {
 	next, _ = m.Update(resultMsg{revision: m.revision, rows: []hit{{UID: "d"}, {UID: "e"}}})
 	if got := next.(model); got.sel != 0 {
 		t.Fatalf("missing session must select the first row, got %d", got.sel)
+	}
+}
+
+// `?` opens the help as a popup over the live screen: the results behind it stay visible, the
+// box is centred and framed, every line keeps the screen width, and it fits a 24-row terminal.
+func TestHelpIsAPopupOverTheScreen(t *testing.T) {
+	m := lookModel(false)
+	m.width, m.height = 100, 30
+	before := strings.Split(ansi.Strip(m.View().Content), "\n")
+	m.help = true
+	after := strings.Split(ansi.Strip(m.View().Content), "\n")
+	if len(after) != len(before) {
+		t.Fatalf("popup changed the screen height: %d != %d", len(after), len(before))
+	}
+	top := -1
+	for i, l := range after {
+		if w := displayWidth(l); w != m.width {
+			t.Fatalf("row %d is %d wide, want %d: %q", i, w, m.width, l)
+		}
+		if strings.Contains(l, "╭") {
+			top = i
+		}
+	}
+	if top < 1 {
+		t.Fatalf("no popup frame in:\n%s", strings.Join(after, "\n"))
+	}
+	if after[0] != before[0] {
+		t.Fatalf("query row must stay visible behind the popup:\n%q\n%q", after[0], before[0])
+	}
+	same := 0
+	for i := range before {
+		if before[i] == after[i] {
+			same++
+		}
+	}
+	if same == 0 {
+		t.Fatal("nothing of the original screen is left around the popup")
+	}
+	m.width, m.height = 80, 24
+	small := ansi.Strip(m.View().Content)
+	for _, l := range helpLines() {
+		if l != "" && !strings.Contains(small, strings.TrimSpace(l)) {
+			t.Fatalf("help line cut off at 80x24: %q\n%s", l, small)
+		}
+	}
+}
+
+// The View asks the terminal for focus reports, names the tab after the search, and mirrors
+// first-run indexing in the terminal's progress indicator.
+func TestViewTerminalHints(t *testing.T) {
+	m := lookModel(false)
+	v := m.View()
+	if !v.ReportFocus {
+		t.Fatal("focus reports must be on")
+	}
+	if want := "kioku · fts5 · 2 hits"; v.WindowTitle != want {
+		t.Fatalf("title = %q, want %q", v.WindowTitle, want)
+	}
+	m.q = ""
+	if got := m.View().WindowTitle; got != "kioku" {
+		t.Fatalf("browsing title = %q", got)
+	}
+	if m.View().ProgressBar != nil {
+		t.Fatal("no progress bar while idle")
+	}
+	m.progress, m.pct = "indexing 5/10", 50
+	if pb := m.View().ProgressBar; pb == nil || pb.State != tea.ProgressBarDefault || pb.Value != 50 {
+		t.Fatalf("progress bar = %+v", pb)
+	}
+	m.pct = 0
+	if pb := m.View().ProgressBar; pb == nil || pb.State != tea.ProgressBarIndeterminate {
+		t.Fatalf("want an indeterminate bar before the first count, got %+v", pb)
+	}
+}
+
+// Focus-in catches up with a sync only when timed syncing is on and the first scan is done;
+// a timer that fires while the window is in the background waits for focus.
+func TestFocusSyncsOnlyWhenTimedSyncIsOn(t *testing.T) {
+	defer func(d time.Duration) { syncEvery = d }(syncEvery)
+	m := lookModel(false)
+	m.synced = true
+	syncEvery = 0
+	if got, cmd := m.onFocus(true); got.(model).syncing || cmd != nil {
+		t.Fatal("focus must not sync when background syncing is off")
+	}
+	syncEvery = time.Minute
+	blurred, _ := m.onFocus(false)
+	if !blurred.(model).blurred {
+		t.Fatal("blur must be remembered")
+	}
+	ticked, cmd := blurred.(model).Update(syncTick{})
+	if ticked.(model).syncing || cmd != nil {
+		t.Fatal("a tick in the background must not start a sync")
+	}
+	back, cmd := blurred.(model).onFocus(true)
+	if !back.(model).syncing || cmd == nil || back.(model).blurred {
+		t.Fatal("focus-in must start a sync")
+	}
+}
+
+// A click outside the help popup closes it; a click inside leaves it open.
+func TestHelpClosesOnOutsideClick(t *testing.T) {
+	m := lookModel(false)
+	m.mouse, m.help = true, true
+	r := m.helpRect()
+	if r.w == 0 || !r.contains(r.x+1, r.y+1) || r.contains(0, 0) {
+		t.Fatalf("bad popup rect %+v", r)
+	}
+	in, _ := m.Update(tea.MouseClickMsg{X: r.x + 2, Y: r.y + 2, Button: tea.MouseLeft})
+	if !in.(model).help {
+		t.Fatal("click inside must keep help open")
+	}
+	out, _ := m.Update(tea.MouseClickMsg{X: 0, Y: 0, Button: tea.MouseLeft})
+	if out.(model).help {
+		t.Fatal("click outside must close help")
+	}
+}
+
+// The preview title links the project to its directory even when a topic replaces the path text.
+func TestProjectNameLinksToDirectory(t *testing.T) {
+	m := lookModel(false)
+	m.rows[0].CWD = "/work/My Projects/中文"
+	m.topics = map[string]string{"a": "a topic"}
+	m.messages = nil
+	joined := strings.Join(m.pageLines(m.width), "\n")
+	if !strings.Contains(joined, "\x1b]8;;file:///work/My%20Projects/%E4%B8%AD%E6%96%87") {
+		t.Fatalf("no OSC 8 link on the title: %q", joined)
 	}
 }

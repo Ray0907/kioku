@@ -74,7 +74,7 @@ func (m model) layout() uiLayout {
 		y += listH + 1 // +1 for the blank breathing row before the title bar
 	}
 	pageH := m.pageHeight()
-	if !m.help && len(m.rows) > 0 && pageH > 0 {
+	if len(m.rows) > 0 && pageH > 0 {
 		l.titleBar = rect{x: 0, y: y, w: m.width, h: 1}
 		bodyH := max(0, pageH-2)
 		if bodyH > 0 {
@@ -91,12 +91,12 @@ func (m model) layout() uiLayout {
 }
 
 func (m model) hasRail() bool {
-	return m.width >= minRailWidth && !m.help && len(m.rows) > 0
+	return m.width >= minRailWidth && len(m.rows) > 0
 }
 
 // baseListHeight returns the settled (non-animated) hit-list height.
 func (m model) baseListHeight() int {
-	if m.full || m.help {
+	if m.full {
 		return 0
 	}
 	avail := max(4, m.height-5)

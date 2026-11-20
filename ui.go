@@ -65,6 +65,8 @@ type model struct {
 	status                     string
 	revision                   int
 	progress                   string
+	pct                        int  // indexing progress, 0-100, for the terminal's progress bar
+	blurred                    bool // the terminal window lost focus
 	resume                     *hit
 	pal                        palette
 	offset, transcriptOffset   int
@@ -101,6 +103,7 @@ type loadMsg struct {
 type syncMsg struct {
 	done     bool
 	progress string
+	pct      int
 	err      error
 	periodic bool
 	added    int
@@ -174,7 +177,7 @@ func startSync(periodic bool) tea.Cmd {
 				}
 				if i == 1 || i == n || i%25 == 0 {
 					select {
-					case ch <- syncMsg{progress: fmt.Sprintf("indexing %d/%d", i, n)}:
+					case ch <- syncMsg{progress: fmt.Sprintf("indexing %d/%d", i, n), pct: i * 100 / max(1, n)}:
 					default:
 					}
 				}
@@ -363,9 +366,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, m.armTick()
 		}
-		m.progress = x.x.progress
+		m.progress, m.pct = x.x.progress, x.x.pct
 		if x.x.done {
-			m.progress = ""
+			m.progress, m.pct = "", 0
 			m.synced, m.syncing = true, false
 			if x.x.err != nil {
 				m.status = x.x.err.Error()
@@ -374,8 +377,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(m.requestQuery(), m.armTick())
 		}
 		return m, waitSync(x.ch)
+	case tea.FocusMsg:
+		return m.onFocus(true)
+	case tea.BlurMsg:
+		return m.onFocus(false)
 	case syncTick:
 		m.tick = false
+		if m.blurred {
+			return m, nil // the next focus-in syncs and restarts the timer
+		}
 		if m.syncing {
 			return m, m.armTick()
 		}
@@ -663,6 +673,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "y":
 			if len(m.rows) > 0 {
 				m.status = copyCommand(m.rows[m.sel].ResumeCmd)
+				return m, tea.SetClipboard(m.rows[m.sel].ResumeCmd)
 			}
 		}
 	}
@@ -791,6 +802,12 @@ func (m model) mouseUpdate(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		if x.Button != tea.MouseLeft {
 			return m, nil
 		}
+		if m.help { // a click outside the help popup closes it; inside does nothing
+			if !m.helpRect().contains(x.X, x.Y) {
+				m.help = false
+			}
+			return m, nil
+		}
 		if l.header.contains(x.X, x.Y) {
 			m.focus = true
 			return m, nil
@@ -869,7 +886,7 @@ func (m model) mouseUpdate(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		}
 		if x.Y < m.headerRows()+m.listHeight() && m.listHeight() > 0 {
 			m.offset = max(0, min(max(0, len(m.rows)-m.listHeight()), m.offset+step))
-		} else if !m.help {
+		} else {
 			m.transcriptOffset += step
 			m.pageLines(m.width)
 		}
@@ -901,9 +918,6 @@ func (m model) chromeRows() int {
 	return m.headerRows() + 2
 }
 func (m model) listHeight() int {
-	if m.help {
-		return 0
-	}
 	if m.animActive {
 		return max(0, m.animListH)
 	}

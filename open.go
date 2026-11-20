@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
 	"os"
 	"os/exec"
@@ -69,8 +68,7 @@ func copyCommand(s string) string {
 		cmd.Stdin = strings.NewReader(s)
 		e = cmd.Run()
 	}
-	// OSC 52 also supports remote terminals; emitted outside Bubble Tea's frame.
-	fmt.Fprintf(os.Stderr, "\x1b]52;c;%s\a", base64.StdEncoding.EncodeToString([]byte(s)))
+	// The caller also sends tea.SetClipboard (OSC 52), which reaches remote terminals.
 	if e != nil {
 		return e.Error()
 	}

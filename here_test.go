@@ -408,7 +408,7 @@ func TestHereTUITogglePreservesState(t *testing.T) {
 	}
 	m.focus = false
 	m.help = true
-	if !strings.Contains(m.View().Content, "p        ") {
+	if !strings.Contains(m.View().Content, "p project scope") {
 		t.Fatal("help must document p")
 	}
 	t.Chdir(os.Getenv("HOME"))

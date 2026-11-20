@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -20,6 +19,9 @@ import (
 func (m model) View() tea.View {
 	v := tea.NewView("")
 	v.AltScreen = true
+	v.ReportFocus = true
+	v.WindowTitle = m.windowTitle()
+	v.ProgressBar = m.progressBar()
 	if m.mouse {
 		v.MouseMode = tea.MouseModeCellMotion
 	}
@@ -164,6 +166,9 @@ func (m model) View() tea.View {
 	for i := range rendered {
 		rendered[i] = fitLine(rendered[i], w)
 	}
+	if m.help {
+		rendered = m.overlayHelp(rendered, w)
+	}
 	v.SetContent(strings.Join(rendered, "\n"))
 	if m.prompt != promptNone {
 		cur := tea.NewCursor(min(w-1, promptCursorX), len(rendered)-1)
@@ -245,40 +250,6 @@ func (m model) bgRow(s string, w int, hex string) string {
 	return bg + sgrCode.ReplaceAllStringFunc(pad(s, w), func(code string) string { return code + bg }) + "\x1b[49m"
 }
 func (m *model) pageLines(w int) []string {
-	if m.help {
-		var agents []string
-		for _, h := range harnesses {
-			agents = append(agents, h.mark+" "+h.label)
-		}
-		return []string{
-			"  focus    cursor in query = search; ↓ moves to results",
-			"  query    space = AND · quotes = phrase · -word = exclude",
-			"  ↓ / esc search to results    / or ctrl+f back to search",
-			"  ↑ / k   previous result    ↓ / j next result",
-			"  left / right  or ctrl+b / ctrl+f move caret    home / end  or ctrl+a / ctrl+e line start / end",
-			"  alt+left / alt+right jump a word (Latin or CJK)    delete  delete forward",
-			"  backspace delete before caret    ctrl+u delete to line start",
-			"  ctrl+w  delete previous query word (Latin or CJK)",
-			"  ↑ / ↓   in an empty query, walk query history",
-			"  r       sync the index, then re-run the search",
-			"  n / N   next / previous hit in transcript",
-			"  pgup / pgdown scroll transcript by a page · wheel scrolls lines",
-			"  h / H   add highlighter / clear highlights",
-			"  d / D   set date range / clear date range",
-			"  p        toggle current project scope",
-			"  O       toggle outline (questions + final replies) vs all steps",
-			"  v       full transcript (smoothly collapses hit list)    t show / fold tool output",
-			"  o       open directory in editor",
-			"  y       copy resume command",
-			"  enter   exit and resume in original cwd; apply prompt",
-			"  tab / shift+tab next / previous agent (all or one harness)",
-			"  mouse   drag title bar to resize (double-click resets) · click/drag right rail",
-			"  agents   " + strings.Join(agents, "   "),
-			"  ?       show / close help from results",
-			"  esc     cancel prompt / leave query / quit from results",
-			"  ctrl+c  quit",
-		}
-	}
 	if len(m.rows) == 0 {
 		m.transcriptOffset = 0
 		m.rail = railState{}
@@ -295,6 +266,7 @@ func (m *model) pageLines(w int) []string {
 	}
 	left := "  " + m.agentGlyph(sel.Harness) + " " + lipgloss.NewStyle().Bold(true).Render(displayInline(sel.Project))
 	if topic != "" {
+		left = "  " + m.agentGlyph(sel.Harness) + " " + dirLink(lipgloss.NewStyle().Bold(true), sel.CWD).Render(displayInline(sel.Project))
 		left += m.color(" · ", m.pal.muted) + displayInline(topic) + "  " + m.color(sel.Harness+" · "+sel.TS[:min(10, len(sel.TS))], m.pal.muted)
 	} else {
 		left += "  " + m.color(sel.Harness+"  "+sel.TS[:min(10, len(sel.TS))]+"  ", m.pal.muted) + m.pathLink(sel.CWD, cwd)
@@ -688,11 +660,7 @@ func faint(s string) string {
 
 // pathLink shows shown as a muted OSC 8 link to the directory on disk.
 func (m model) pathLink(dir, shown string) string {
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color(m.pal.muted))
-	if dir != "" {
-		style = style.Hyperlink((&url.URL{Scheme: "file", Path: dir}).String())
-	}
-	return style.Render(displayInline(shown))
+	return dirLink(lipgloss.NewStyle().Foreground(lipgloss.Color(m.pal.muted)), dir).Render(displayInline(shown))
 }
 
 // emptyHints names why nothing matched and lists only the fixes that apply to the current state.

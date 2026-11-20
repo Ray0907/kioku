@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- TUI: the terminal tab is titled `kioku · <query> · N hits`, so several kioku panes stay apart.
+- TUI: first-run indexing is mirrored in the terminal's own progress indicator (tab or dock) in terminals that support it.
+- TUI: with `KIOKU_SYNC_EVERY` set, the timed sync pauses while the window is in the background and runs once when it regains focus.
+- TUI: `y` also copies through the terminal (OSC 52), so it works over SSH and inside multiplexers without a system clipboard tool.
+
+### Changed
+- TUI: `?` opens the key help as a centred popup over the current screen instead of replacing it. The results and preview stay in place behind it; any key or a click outside closes it.
+- TUI: the project name in the preview title is the clickable directory link in every case, not only when the title has no topic.
+
 ## v0.13.1 - 2026-11-19
 
 ### Added
