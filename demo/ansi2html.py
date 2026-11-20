@@ -33,7 +33,9 @@ def line_html(line):
         if st["dim"]: css.append("opacity:.5")
         if st["u"]: css.append("text-decoration:underline;text-underline-offset:3px")
         # Pin every wide (CJK) glyph to exactly two cells so columns line up like a terminal.
+        # Ambiguous-width box and arrow glyphs get one cell for the same reason.
         body = "".join(f'<i class="w">{html.escape(ch)}</i>' if unicodedata.east_asian_width(ch) in "WF"
+                       else f'<i class="n">{html.escape(ch)}</i>' if "\u2190" <= ch <= "\u259f"
                        else html.escape(ch) for ch in text)
         parts.append(f'<span style="{";".join(css)}">{body}</span>')
     for m in re.finditer(r"\x1b\[([0-9;:]*)m", line):
@@ -73,4 +75,5 @@ html,body{{margin:0;background:{BG}}}
 font:15px/1.5 "JetBrains Mono",Menlo,"PingFang TC","Hiragino Sans","Apple SD Gothic Neo",monospace;white-space:pre}}
 .term div{{height:1.5em}}
 .w{{display:inline-block;width:2ch;text-align:center;font-style:normal}}
+.n{{display:inline-block;width:1ch;text-align:center;font-style:normal;overflow:visible}}
 </style><div class="term">{body}</div>""")

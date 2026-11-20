@@ -31,3 +31,4 @@ shot() { # name query [keys...]
 
 shot kioku checkout Escape Down Down
 shot kioku-cjk 結帳 Escape h P a y Enter
+shot kioku-help checkout Escape Down '?'
