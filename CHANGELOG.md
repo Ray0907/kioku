@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.15.2 - 2026-11-20
 
 ### Changed
 - TUI: hit words are highlighted on a tinted background instead of underlined; the curly underline read as noise on long result lists.
