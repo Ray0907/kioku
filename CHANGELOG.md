@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.15.3 - 2026-11-20
 
 ### Changed
 - TUI: the fold row between messages reads `⋯ N steps` in the quiet text colour; the `O shows all` hint is gone because the footer already lists `O outline`.
