@@ -5,6 +5,7 @@
 ### Changed
 - TUI: hit words are highlighted on a tinted background instead of underlined; the curly underline read as noise on long result lists.
 - TUI: result snippets stop two columns earlier, leaving a clear gutter before the project column.
+- TUI: typing no longer flashes the screen: the preview stays until the new results arrive, old rows dim only when a query runs longer than 250 ms, and only the last keystroke starts a search.
 - TUI: a tall window gives the result list half of its height.
 
 ## v0.15.1 - 2026-11-20

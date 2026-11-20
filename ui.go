@@ -48,6 +48,7 @@ type model struct {
 	allTime, includeSelf       bool
 	includeAutomated           bool
 	focus, full, help, mouse   bool
+	slow                       bool // the pending query has taken long enough to dim the old rows
 	helpAnim                   int  // frames left of the popup opening; 0 = fully open
 	outline                    bool // O toggles outline view (user prompts + final replies + hits)
 	toolsOpen                  bool // t unfolds tool output in the transcript
@@ -128,6 +129,10 @@ func parseSyncEvery(s string) (time.Duration, error) {
 }
 
 type debounce int
+type slowMsg int
+
+// slowAfter is how long a query may run before the old rows dim; faster ones just swap, without a flash.
+const slowAfter = 250 * time.Millisecond
 
 func newModel(db *sql.DB, q, h string, projects []string, rows []hit, mouse bool, limit int, includeSelf bool) model {
 	p := light
@@ -318,8 +323,13 @@ func (m *model) refresh() tea.Cmd {
 		m.loadCancel()
 	}
 	m.loadRevision++
-	m.messages, m.hitIndex, m.loadedKey = nil, map[int]bool{}, ""
-	return tea.Tick(30*time.Millisecond, func(time.Time) tea.Msg { return debounce(m.revision) })
+	m.loadedKey = "" // the preview keeps showing until the new results replace it; blanking it every keystroke made the screen flash
+	m.slow = false
+	rev := m.revision
+	return tea.Batch(
+		tea.Tick(30*time.Millisecond, func(time.Time) tea.Msg { return debounce(rev) }),
+		tea.Tick(slowAfter, func(time.Time) tea.Msg { return slowMsg(rev) }),
+	)
 }
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch x := msg.(type) {
@@ -401,6 +411,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.syncing = true
 		return m, startSync(true)
+	case slowMsg:
+		if int(x) == m.revision && m.pending() {
+			m.slow = true
+		}
+		return m, nil
 	case debounce:
 		if int(x) != m.revision {
 			return m, nil
@@ -409,6 +424,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case resultMsg:
 		if x.revision == m.revision {
 			m.resultRev = x.revision
+			m.slow = false
 			if x.err != nil {
 				if x.err != context.Canceled {
 					m.status = x.err.Error()

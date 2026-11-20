@@ -231,6 +231,10 @@ func TestPendingResultsStayFaintAndKeepSelection(t *testing.T) {
 	m.q, m.qpos = "x", 1
 	m.refresh()
 	rev := m.revision
+	if strings.Contains(m.View().Content, "\x1b[2m") {
+		t.Fatal("a quick query must not flash the old rows faint")
+	}
+	m.slow = true
 	pending := m.View().Content
 	if !strings.Contains(pending, "\x1b[2m") || !strings.Contains(ansi.Strip(pending), "second") {
 		t.Fatalf("pending results must keep old rows, faint:\n%s", ansi.Strip(pending))

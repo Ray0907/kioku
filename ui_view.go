@@ -124,7 +124,7 @@ func (m model) View() tea.View {
 			if band {
 				row = m.selectionRow(row, w)
 			}
-			if m.pending() {
+			if m.pending() && m.slow {
 				row = faint(row)
 			}
 			b.WriteString(clipANSI(row, w) + "\n")
