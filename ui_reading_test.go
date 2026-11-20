@@ -234,3 +234,27 @@ func TestHitMapRailClickJumpsAndDragScrubs(t *testing.T) {
 		t.Fatalf("scrubbing to bottom of rail should reveal last message:\n%s", ansi.Strip(m.View().Content))
 	}
 }
+
+// In the outline an unselected message is a glance: it stops after contextLines lines, while the
+// selected message is shown whole.
+func TestOutlineCapsContextMessages(t *testing.T) {
+	long := strings.Repeat("line\n", 9) + "last"
+	m := lookModel(false)
+	m.width, m.height = 100, 40
+	m.q = ""
+	m.hitIndex = map[int]bool{}
+	m.outline = true
+	m.cursor = 0
+	m.messages = []message{
+		{Index: 0, Role: "user", Text: "short prompt", TS: "2026-11-18T10:00:00Z"},
+		{Index: 1, Role: "assistant", Text: long, TS: "2026-11-18T10:01:00Z"},
+	}
+	v := ansi.Strip(m.View().Content)
+	if strings.Contains(v, "last") || !strings.Contains(v, "…") {
+		t.Fatalf("an unselected message must be cut after %d lines:\n%s", contextLines, v)
+	}
+	m.cursor = 1
+	if v := ansi.Strip(m.View().Content); !strings.Contains(v, "last") {
+		t.Fatalf("the selected message must show whole:\n%s", v)
+	}
+}

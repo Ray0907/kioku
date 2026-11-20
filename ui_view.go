@@ -436,6 +436,9 @@ func (m *model) pageLines(w int) []string {
 			}
 			body = []string{clip(first, textW)}
 		}
+		if m.outline && !selected && !isHit && len(body) > contextLines { // outline: context is a glance, not a read
+			body = append(body[:contextLines-1:contextLines-1], clip(body[contextLines-1], textW-1)+"…")
+		}
 		selHex := m.pal.selbg
 		if selected && m.pulseTicks > 0 {
 			selHex = m.pal.pulse
@@ -648,6 +651,9 @@ func wrap(s string, w int) []string {
 }
 
 // pending reports that the rows on screen belong to an older query than the one typed.
+// contextLines caps how many lines an unselected, non-hit message takes in the outline.
+const contextLines = 3
+
 func (m model) pending() bool { return m.resultRev != m.revision }
 
 // faint dims a rendered row without losing the styles inside it.
