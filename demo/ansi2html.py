@@ -20,6 +20,7 @@ def c256(n):
     g = 8 + (n - 232) * 10; return "#%02x%02x%02x" % (g, g, g)
 
 def line_html(line):
+    line = re.sub(r"\x1b\]8;[^\x07\x1b]*(?:\x07|\x1b\\)", "", line)  # OSC 8 links carry no pixels
     st = {"fg": None, "bg": None, "b": False, "dim": False, "u": False, "rev": False}
     parts, pos = [], 0
     def emit(text):
