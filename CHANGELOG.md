@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### Changed
-- TUI: hit words use a plain underline instead of a curly one, which read as noise on long result lists.
+- TUI: hit words are highlighted on a tinted background instead of underlined; the curly underline read as noise on long result lists.
 - TUI: result snippets stop two columns earlier, leaving a clear gutter before the project column.
 - TUI: a tall window gives the result list half of its height.
 

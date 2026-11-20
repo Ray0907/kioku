@@ -19,12 +19,13 @@ type palette struct {
 	hit, muted, dim, selbg, pulse, surf, acc, key string
 	pens                                          [3]string
 	agents                                        map[string]string // glyph colour per harness; red stays reserved for hits
+	hitbg                                         string            // highlighter behind matched words
 }
 
 var light = palette{"#b6322d", "#56606a", "#727c87", "#d2e3f9", "#bfd8f8", "#eef3f9", "#2a64b0", "#e3eaf3", [3]string{"#fde89a", "#bdfac8", "#ffe0f2"},
-	harnessColors(false)}
+	harnessColors(false), "#f8d7d3"}
 var dark = palette{"#f6857a", "#95a0ab", "#7a8591", "#293647", "#364b68", "#232a35", "#7fb0ee", "#303a49", [3]string{"#3c3207", "#193b22", "#492537"},
-	harnessColors(true)}
+	harnessColors(true), "#4a2a2a"}
 
 type pen struct {
 	word  string

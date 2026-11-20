@@ -38,27 +38,38 @@ func TestCursorByMode(t *testing.T) {
 	}
 }
 
-// B2: hit words get a plain underline in the hit colour, never a background or reverse video,
-// so the selected row's band and the hit mark do not collide.
-func TestHitsUseUnderline(t *testing.T) {
+// B2: hit words are a highlighter: hit-coloured bold text on a tinted background, with no
+// underline and no reverse video, so the selected row's band and the hit mark stay apart.
+func TestHitsUseHighlighter(t *testing.T) {
 	m := lookModel(false)
 	m.q = "world"
 	for _, selected := range []bool{false, true} {
 		out := m.paint("hello world", true, selected)
-		if strings.Contains(out, "4:3") || !strings.Contains(out, "38;2;246;133;122") || !strings.Contains(out, ";4;") && !strings.Contains(out, "[4;") && !strings.Contains(out, ";4m") {
-			t.Fatalf("selected=%v: want a plain (not curly) underline in the hit colour: %q", selected, out)
+		if !strings.Contains(out, "38;2;246;133;122") || !strings.Contains(out, "48;2;74;42;42") {
+			t.Fatalf("selected=%v: want hit colour on the highlighter background: %q", selected, out)
 		}
-		if strings.Contains(out, ";7m") || strings.Contains(out, "[7m") || strings.Contains(out, "48;") {
-			t.Fatalf("selected=%v: hit must not use reverse or a background: %q", selected, out)
+		if strings.Contains(out, "4:3") || strings.Contains(out, ";4;") || strings.Contains(out, "[4;") || strings.Contains(out, ";4m") || strings.Contains(out, ";7m") || strings.Contains(out, "[7m") {
+			t.Fatalf("selected=%v: hit must not be underlined or reversed: %q", selected, out)
 		}
 		if ansi.Strip(out) != "hello world" {
 			t.Fatalf("text changed: %q", ansi.Strip(out))
 		}
 	}
 	// With colours stripped (NO_COLOR) the hit must still differ from the text around it.
-	plain := m.paint("hello world", true, false)
-	if !strings.Contains(plain, "\x1b[1") || !strings.Contains(plain, "4") {
-		t.Fatalf("hit keeps bold and underline without colour: %q", plain)
+	if plain := m.paint("hello world", true, false); !strings.Contains(plain, "\x1b[1") {
+		t.Fatalf("hit keeps bold without colour: %q", plain)
+	}
+}
+
+// The highlighter must keep the hit text readable, and stay distinct from the selection band.
+func TestHighlighterContrast(t *testing.T) {
+	for name, p := range map[string]palette{"light": light, "dark": dark} {
+		if got := contrast(p.hit, p.hitbg); got < 3.5 {
+			t.Errorf("%s: hit on highlighter contrast %.2f < 3.5", name, got)
+		}
+		if p.hitbg == p.selbg {
+			t.Errorf("%s: highlighter equals the selection band", name)
+		}
 	}
 }
 
