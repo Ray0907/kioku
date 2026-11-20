@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.15.1 - 2026-11-20
+
+### Fixed
+- TUI: the `?` help popup no longer has empty separator rows that rendered as dark bands in some terminals; it is one solid surface.
+
 ## v0.15.0 - 2026-11-20
 
 ### Changed
