@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.14.0 - 2026-11-20
 
 ### Added
 - TUI: the terminal tab is titled `kioku · <query> · N hits`, so several kioku panes stay apart.
