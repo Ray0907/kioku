@@ -254,7 +254,9 @@ func compactShow(ctx context.Context, db *sql.DB, k pageKey, offset int, noRedac
 	if e = db.QueryRowContext(ctx, `SELECT ts FROM messages WHERE session_id=(SELECT session_id FROM sessions WHERE uid=?) AND idx=?`, uid, first).Scan(&ts); e != nil {
 		return p, e
 	}
-	if len(ts) >= 10 {
+	if t, parseErr := time.Parse(time.RFC3339Nano, ts); parseErr == nil {
+		p.Date = t.Local().Format("2006-01-02")
+	} else if len(ts) >= 10 {
 		p.Date = ts[:10]
 	}
 	p.ResumeCmd = resumeCmd(p.Harness, nativeID, path, p.CWD)
@@ -287,7 +289,7 @@ func compactShow(ctx context.Context, db *sql.DB, k pageKey, offset int, noRedac
 			}
 			hm := "??:??"
 			if t, parseErr := time.Parse(time.RFC3339Nano, ts); parseErr == nil {
-				hm = t.Format("15:04")
+				hm = t.Local().Format("15:04")
 			}
 			if len(noRedact) == 0 || !noRedact[0] {
 				text = redact(text)
