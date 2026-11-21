@@ -5,3 +5,6 @@
 .gstack/
 internal-docs/
 test/out/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+desktop/test/out/

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>kioku</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="bar">
+  <span class="word">kioku</span>
+  <label class="q"><span class="visually-hidden">Search messages</span>
+    <input id="q" type="search" name="q" autocomplete="off" spellcheck="false" placeholder="Search every session"><kbd>/</kbd></label>
+  <div class="filters">
+    <label class="sel"><span class="visually-hidden">Project</span><select id="project" name="project"><option value="">All projects</option></select></label>
+    <label class="sel"><span class="visually-hidden">Range</span><select id="range" name="range">
+      <option value="">All time</option><option value="60">Last 60 days</option><option value="30">Last 30 days</option><option value="14">Last 14 days</option>
+    </select></label>
+  </div>
+</header>
+
+<main class="app">
+  <section class="list" aria-label="Results">
+    <div class="read" id="read" hidden></div>
+    <div class="axiswrap" id="axis" hidden></div>
+    <div id="results" aria-live="polite"></div>
+  </section>
+  <section class="reader" aria-label="Session">
+    <div id="session" hidden></div>
+    <div class="reader-none" id="none">Select a message to read its session.</div>
+  </section>
+</main>
+
+<footer class="status">
+  <div class="keys"><span><kbd>↑</kbd><kbd>↓</kbd>move</span><span><kbd>n</kbd><kbd>N</kbd>next match</span><span><kbd>Enter</kbd>resume</span><span><kbd>/</kbd>search</span></div>
+</footer>
+<script type="module" src="app.js"></script>
+</body>
+</html>
