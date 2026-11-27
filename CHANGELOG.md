@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.16.0 - 2026-11-27
 
 ### Changed
 - TUI: filters and highlights show as removable chips below the search box; `p` scopes to the current project or clears an active project filter.
