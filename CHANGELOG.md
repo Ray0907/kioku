@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.16.3 - 2026-11-27
+
+### Fixed
+- CI: the views end-to-end check compared against a commit that no longer exists and expected the old range header; it now uses v0.15.3 and the range chip. v0.16.2 failed its release build on it.
+
 ## v0.16.2 - 2026-11-27
 
 ### Fixed

@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 rm -f "$ROOT/test/views-e2e-result.json"
 BIN=${BIN:-$ROOT/kioku}
-BASE_REF=${BASE_REF:-6a64f08}
+BASE_REF=${BASE_REF:-v0.15.3}
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/kioku-views.XXXXXX")
 trap 'rm -rf "$TMP"' EXIT
 
@@ -135,8 +135,8 @@ for tz in ('UTC','Asia/Taipei'):
 		keys('Escape'); keys('d')
 		wait_for(r'range ▸ ')
 		type_text('3d..yesterday'); keys('Enter')
-		cur=wait_for(r'3d|\d{4}-\d\d-\d\d to \d{4}-\d\d-\d\d')
-		cur=wait_for(r'\d{4}-\d\d-\d\d to \d{4}-\d\d-\d\d · \d+ messages')
+		wait_for(r'◷ \d{4}-\d\d-\d\d to \d{4}-\d\d-\d\d')
+		cur=wait_for(r'(?<!\d)(?!'+all_total[0]+r' messages)\d+ messages · \d+ sessions')
 		got=tuple(map(int,header(cur).groups()))
 		want=cli_total(tz,'--since','3d','--until','yesterday','checkout')
 		assert got==want,(tz,got,want,cur)
