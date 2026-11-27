@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.16.1 - 2026-11-27
+
+### Fixed
+- Release build: the v0.16.0 tag was missing the TUI filter-chip source, so CI and release builds failed to compile. v0.16.1 adds it.
+
 ## v0.16.0 - 2026-11-27
 
 ### Changed
