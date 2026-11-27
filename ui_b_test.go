@@ -299,8 +299,8 @@ func TestHelpIsAPopupOverTheScreen(t *testing.T) {
 	}
 	m.width, m.height = 80, 24
 	small := ansi.Strip(m.View().Content)
-	for _, l := range helpLines() {
-		if l != "" && !strings.Contains(small, strings.TrimSpace(l)) {
+	for _, l := range m.helpRows(m.width) {
+		if l = strings.TrimSpace(ansi.Strip(l)); l != "" && !strings.Contains(small, l) {
 			t.Fatalf("help line cut off at 80x24: %q\n%s", l, small)
 		}
 	}

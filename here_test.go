@@ -376,9 +376,10 @@ func TestHereTUITogglePreservesState(t *testing.T) {
 	load := m.requestLoad()
 	m = settle(t, m, load)
 	selected := m.rows[m.sel].ID
-	header := strings.Split(m.View().Content, "\n")[0]
-	if strings.Contains(header, filepath.Base(root)) {
-		t.Fatal("scope basename shown while off")
+	filters := func(m model) string { return ansi.Strip(strings.Split(m.View().Content, "\n")[1]) }
+	original := filters(m)
+	if strings.Contains(original, filepath.Base(root)) {
+		t.Fatal("scope chip shown while off")
 	}
 	for _, on := range []bool{true, false} {
 		updated, cmd := m.Update(keyRunes("p"))
@@ -393,12 +394,12 @@ func TestHereTUITogglePreservesState(t *testing.T) {
 		if len(m.rows) != wantRows || m.rows[m.sel].ID != selected || m.q != "scopeprobe" || m.focus || m.rng != lastTwentyDays || !reflect.DeepEqual(m.pens, []pen{{"probe", 1}}) || len(m.hitIndex) == 0 {
 			t.Fatalf("toggle lost state: rows=%d sel=%d q=%q focus=%v range=%+v pens=%v", len(m.rows), m.sel, m.q, m.focus, m.rng, m.pens)
 		}
-		h := strings.Split(m.View().Content, "\n")[0]
-		if strings.Contains(h, filepath.Base(root)) != on {
-			t.Fatalf("header scope on=%v: %s", on, h)
+		line := filters(m)
+		if strings.Contains(line, "⌂ "+filepath.Base(root)+" ×") != on {
+			t.Fatalf("scope chip on=%v: %s", on, line)
 		}
-		if !on && h != header {
-			t.Fatalf("off header changed:\n%s\n%s", header, h)
+		if !on && line != original {
+			t.Fatalf("clearing scope changed the other filters:\n%s\n%s", original, line)
 		}
 	}
 	m.focus = true
@@ -409,7 +410,7 @@ func TestHereTUITogglePreservesState(t *testing.T) {
 	}
 	m.focus = false
 	m.help = true
-	if !strings.Contains(ansi.Strip(m.View().Content), "p project scope") {
+	if !strings.Contains(strings.Join(strings.Fields(ansi.Strip(m.View().Content)), " "), "p project scope") {
 		t.Fatal("help must document p")
 	}
 	t.Chdir(os.Getenv("HOME"))
@@ -432,12 +433,12 @@ func TestHereTUIWideBasename(t *testing.T) {
 	m = settle(t, updated.(model), cmd)
 	for _, width := range []int{25, 40, 80, 120} {
 		m.width = width
-		header := strings.Split(m.View().Content, "\n")[0]
-		if displayWidth(header) != width {
-			t.Fatalf("CJK header width=%d want=%d: %q", displayWidth(header), width, header)
+		line := ansi.Strip(strings.Split(m.View().Content, "\n")[1])
+		if displayWidth(line) != width {
+			t.Fatalf("CJK filter row width=%d want=%d: %q", displayWidth(line), width, line)
 		}
-		if width >= 80 && !strings.Contains(header, filepath.Base(root)) {
-			t.Fatalf("missing CJK basename: %s", header)
+		if width >= 40 && !strings.Contains(line, "⌂ "+filepath.Base(root)+" ×") {
+			t.Fatalf("missing CJK scope chip: %s", line)
 		}
 	}
 }

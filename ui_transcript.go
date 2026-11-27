@@ -6,7 +6,95 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
+
+const (
+	transcriptTitleInset = "  "
+	transcriptOutline    = "outline"
+)
+
+// hitPosition reports transcript-ordered hits; position is zero off a hit.
+func (m model) hitPosition() (position, total int) {
+	if len(m.hitIndex) == 0 || toFTS(m.q) == "" {
+		return 0, 0
+	}
+	for i, x := range m.messages {
+		if m.hitIndex[x.Index] {
+			total++
+			if i == m.cursor {
+				position = total
+			}
+		}
+	}
+	return position, total
+}
+
+func (m model) outlineRect() rect {
+	bar := m.layout().titleBar
+	if !m.outline || bar.w == 0 {
+		return rect{}
+	}
+	return rect{x: bar.x + bar.w - len(transcriptTitleInset) - len(transcriptOutline), y: bar.y, w: len(transcriptOutline), h: bar.h}
+}
+
+func (m model) transcriptTitle(w int) string {
+	sel := m.rows[m.sel]
+	strong := lipgloss.NewStyle().Bold(true)
+	accent := strong.Foreground(lipgloss.Color(m.pal.acc))
+	dot := m.color(" · ", m.pal.muted)
+	right := m.color(m.readPercent(), m.pal.muted)
+	if m.outline {
+		if right != "" {
+			right += dot
+		}
+		right += accent.Render(transcriptOutline)
+	}
+	if pos, total := m.hitPosition(); total > 0 {
+		label := fmt.Sprintf("%d hits", total)
+		if pos > 0 {
+			label = fmt.Sprintf("hit %d/%d", pos, total)
+		}
+		hits := accent.Render(label)
+		if right != "" {
+			hits += dot
+		}
+		if displayWidth(hits+right)+len(transcriptTitleInset) <= w {
+			right = hits + right
+		}
+	}
+	leftW := w - displayWidth(right) - len(transcriptTitleInset)
+	left := transcriptTitleInset + m.agentGlyph(sel.Harness) + m.color(" "+sel.Harness, m.pal.muted)
+	date := ""
+	if sel.TS != "" {
+		date = dot + m.color(sel.TS[:min(10, len(sel.TS))], m.pal.muted)
+	}
+	project := displayInline(sel.Project)
+	if room := leftW - displayWidth(left+dot+date) - 1; room > 0 && project != "" {
+		left += dot + dirLink(strong, sel.CWD).Render(ansi.Truncate(project, room, "…"))
+	}
+	left += date
+	if room := leftW - displayWidth(left) - 4; room > 14 {
+		topic := m.topics[sel.UID]
+		if topic == "" {
+			topic = messagesTopic(m.messages)
+		}
+		if topic != "" {
+			left += dot + m.color(clip(displayInline(topic), room), m.pal.muted)
+		} else if cwd := sel.CWD; cwd != "" {
+			if home, e := os.UserHomeDir(); e == nil && home != "" && strings.HasPrefix(cwd, home+"/") {
+				cwd = "~" + cwd[len(home):]
+			}
+			left += dot + m.pathLink(sel.CWD, clip(displayInline(cwd), room))
+		}
+	}
+	titleBg := m.pal.surf
+	if m.drag == dragSplit {
+		titleBg = m.pal.selbg
+	}
+	header := pad(clipANSI(left, leftW-1), leftW) + right + transcriptTitleInset
+	return m.bgRow(header, w, titleBg)
+}
 
 func (m *model) pageLines(w int) []string {
 	if len(m.rows) == 0 {
@@ -14,51 +102,8 @@ func (m *model) pageLines(w int) []string {
 		m.rail = railState{}
 		return nil
 	}
-	sel := m.rows[m.sel]
-	cwd := sel.CWD
-	if home, e := os.UserHomeDir(); e == nil && home != "" && strings.HasPrefix(cwd, home+"/") {
-		cwd = "~" + cwd[len(home):]
-	}
-	topic := m.topics[sel.UID]
-	if topic == "" {
-		topic = messagesTopic(m.messages)
-	}
-	left := "  " + m.agentGlyph(sel.Harness) + " " + lipgloss.NewStyle().Bold(true).Render(displayInline(sel.Project))
-	if topic != "" {
-		left = "  " + m.agentGlyph(sel.Harness) + " " + dirLink(lipgloss.NewStyle().Bold(true), sel.CWD).Render(displayInline(sel.Project))
-		left += m.color(" · ", m.pal.muted) + displayInline(topic) + "  " + m.color(sel.Harness+" · "+sel.TS[:min(10, len(sel.TS))], m.pal.muted)
-	} else {
-		left += "  " + m.color(sel.Harness+"  "+sel.TS[:min(10, len(sel.TS))]+"  ", m.pal.muted) + m.pathLink(sel.CWD, cwd)
-	}
 	active := toFTS(m.q) != ""
-	count := m.readPercent()
-	if active {
-		hits := 0
-		for _, hit := range m.hitIndex {
-			if hit {
-				hits++
-			}
-		}
-		noun := "hits"
-		if hits == 1 {
-			noun = "hit"
-		}
-		if count != "" {
-			count += " · "
-		}
-		count += fmt.Sprintf("%d %s here", hits, noun)
-	}
-	outlineTag := ""
-	if m.outline {
-		outlineTag = m.color(" · ", m.pal.muted) + lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(m.pal.acc)).Render("outline")
-	}
-	rightText := m.color(clip(count, max(0, w-6-displayWidth(outlineTag))), m.pal.muted) + outlineTag
-	titleBg := m.pal.surf
-	if m.drag == dragSplit {
-		titleBg = m.pal.selbg
-	}
-	header := pad(clipANSI(left, max(0, w-displayWidth(rightText)-4)), w-displayWidth(rightText)-2) + rightText + "  "
-	out := []string{m.bgRow(header, w, titleBg), ""}
+	out := []string{m.transcriptTitle(w), ""}
 	keep := map[int]bool{}
 	start, end := 0, len(m.messages)
 	// ponytail: render a 200-message window for huge sessions; virtualize line offsets if direct arbitrary scrolling is needed.
@@ -153,8 +198,9 @@ func (m *model) pageLines(w int) []string {
 		selected := i == m.cursor
 		isHit := active && m.hitIndex[x.Index]
 		context := !m.full && active && !isHit
-		star := " "
+		edge, star := "  ", " "
 		if selected {
+			edge = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(m.pal.acc)).Render("▎") + " "
 			star = lipgloss.NewStyle().Bold(true).Render("›")
 		} else if isHit {
 			star = m.color("✱", m.pal.hit)
@@ -185,8 +231,9 @@ func (m *model) pageLines(w int) []string {
 			}
 			rule = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(ruleColor)).Render("┃")
 		}
-		prefix := "  " + star + "  " + stampText + " " + rule + " " + roleText + "  "
-		const textCol = 19
+		const gutterCol, textCol = 11, 19
+		prefix := edge + star + "  " + stampText + " " + rule + " " + roleText + "  "
+		continuation := edge + strings.Repeat(" ", gutterCol-2) + rule + strings.Repeat(" ", textCol-gutterCol-1)
 		textW := min(maxReadingWidth, max(1, bodyW-textCol-2))
 		body := wrap(displayTranscript(x.Text), textW)
 		folded := x.Role == "tool" && !m.toolsOpen && !selected && !isHit
@@ -208,7 +255,7 @@ func (m *model) pageLines(w int) []string {
 		for j, line := range body {
 			p := prefix
 			if j > 0 {
-				p = strings.Repeat(" ", textCol)
+				p = continuation
 			}
 			line = m.paint(line, isHit, selected)
 			if (context || folded || (m.focus && !isHit)) && !selected {
@@ -216,7 +263,7 @@ func (m *model) pageLines(w int) []string {
 			}
 			line = p + line
 			if selected {
-				line = m.bgRow(line, bodyW, selHex)
+				line = m.bgRow(line, min(bodyW, textCol+textW+1), selHex)
 			}
 			lines = append(lines, clipANSI(line, bodyW))
 		}
@@ -264,6 +311,7 @@ func (m *model) pageLines(w int) []string {
 		}
 	}
 	var body []string
+	var messageRows []int
 	focus := 0
 	for k := lo; k < hi; k++ {
 		if k == fi {
@@ -272,10 +320,19 @@ func (m *model) pageLines(w int) []string {
 				focus++
 			}
 		}
-		body = append(body, get(k)...)
+		lines := get(k)
+		body = append(body, lines...)
+		for j := range lines {
+			idx := items[k].i
+			if j == 0 && items[k].lead != "" {
+				idx = -1
+			}
+			messageRows = append(messageRows, idx)
+		}
 	}
 	if hi == len(items) && trail != "" {
 		body = append(body, trail)
+		messageRows = append(messageRows, -1)
 	}
 	viewStart := 0
 	base := 0
@@ -288,6 +345,7 @@ func (m *model) pageLines(w int) []string {
 		m.transcriptOffset = 0
 	}
 	totalLines := viewStart + len(body)
+	messageRows = messageRows[viewStart:min(totalLines, viewStart+room)]
 	// Populate the 1-cell Hit-Map rail state and stamp it on the right edge.
 	hitRows := map[int]int{}
 	cursorRow := -1
@@ -311,12 +369,13 @@ func (m *model) pageLines(w int) []string {
 			cursorRow = mapRow(m.cursor)
 		}
 		m.rail = railState{
-			total:     totalLines,
-			start:     viewStart,
-			visible:   room,
-			base:      base,
-			hitRows:   hitRows,
-			cursorRow: cursorRow,
+			total:       totalLines,
+			start:       viewStart,
+			visible:     room,
+			base:        base,
+			hitRows:     hitRows,
+			cursorRow:   cursorRow,
+			messageRows: messageRows,
 		}
 		thumbStart, thumbEnd := 0, room-1
 		if totalLines > room && room > 0 {
@@ -349,7 +408,7 @@ func (m *model) pageLines(w int) []string {
 		}
 		out = append(out, visibleRows...)
 	} else {
-		m.rail = railState{total: totalLines, start: viewStart, visible: room, base: base}
+		m.rail = railState{total: totalLines, start: viewStart, visible: room, base: base, messageRows: messageRows}
 		out = append(out, body...)
 	}
 	return out

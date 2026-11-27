@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	maxReadingWidth = 84
+	maxReadingWidth = 74
 	minRailWidth    = 40
 	animFrameDelay  = 16 * time.Millisecond
 	pulseFrameCount = 8 // ~128ms gentle visual confirmation on hit jump
@@ -24,7 +24,7 @@ func (r rect) contains(px, py int) bool {
 
 type uiLayout struct {
 	header     rect
-	pens       rect
+	filters    rect
 	list       rect
 	titleBar   rect
 	transcript rect
@@ -48,12 +48,13 @@ type topicsMsg struct {
 }
 
 type railState struct {
-	total     int
-	start     int
-	visible   int
-	base      int
-	hitRows   map[int]int // rail row (0..visible-1) -> message index in m.messages
-	cursorRow int         // -1 if none
+	total       int
+	start       int
+	visible     int
+	base        int
+	hitRows     map[int]int // rail row (0..visible-1) -> message index in m.messages
+	cursorRow   int         // -1 if none
+	messageRows []int       // visible body row -> index in m.messages; -1 for fold rows
 }
 
 // layout computes the screen rects for every interactive zone in one place so
@@ -64,8 +65,8 @@ func (m model) layout() uiLayout {
 		return l
 	}
 	l.header = rect{x: 0, y: 0, w: m.width, h: 1}
-	if len(m.pens) > 0 {
-		l.pens = rect{x: 0, y: 1, w: m.width, h: 1}
+	if m.headerRows() > 2 {
+		l.filters = rect{x: 0, y: 1, w: m.width, h: 1}
 	}
 	y := m.headerRows()
 	listH := m.listHeight()

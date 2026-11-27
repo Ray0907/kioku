@@ -17,8 +17,8 @@ import (
 type palette struct {
 	hit, muted, dim, selbg, pulse, surf, acc, key string
 	pens                                          [3]string
-	agents                                        map[string]string // glyph colour per harness; red stays reserved for hits
-	hitbg                                         string            // highlighter behind matched words
+	agents                                        map[string]agentColors // red stays reserved for hits
+	hitbg                                         string                 // highlighter behind matched words
 }
 
 var light = palette{"#b6322d", "#56606a", "#727c87", "#d2e3f9", "#bfd8f8", "#eef3f9", "#2a64b0", "#e3eaf3", [3]string{"#fde89a", "#bdfac8", "#ffe0f2"},
@@ -302,6 +302,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseMsg:
 		return m.mouseUpdate(x)
 	case tea.PasteMsg:
+		if m.help {
+			return m, nil
+		}
 		pasted := displayInline(x.Content)
 		if pasted == "" {
 			return m, nil
@@ -327,7 +330,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, tea.Quit
 		}
-		if key == "ctrl+f" && (!m.focus || m.prompt != promptNone) {
+		if key == "ctrl+f" && (!m.focus || m.help || m.prompt != promptNone) {
 			if m.prompt != promptNone {
 				m.prompt = promptNone
 				m.status = ""
@@ -365,6 +368,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if text := keyText(x); text != "" {
 					m.status += text
 				}
+			}
+			return m, nil
+		}
+		if key == "?" && (!m.focus || m.help) {
+			m.help = !m.help
+			if m.help {
+				m.drag = dragNone
+				m.helpAnim = helpFrames
+				return m, helpTick()
+			}
+			return m, nil
+		}
+		if m.help {
+			m.help = false
+			if key == "/" {
+				m.focus = true
 			}
 			return m, nil
 		}
@@ -427,19 +446,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		if m.help && key != "?" {
-			m.help = false
-			if key == "/" {
-				m.focus = true
-			}
-			return m, nil
-		}
 		switch key {
 		case "esc":
-			if m.help {
-				m.help = false
-				return m, nil
-			}
 			return m, tea.Quit
 		case "up", "k":
 			if m.sel == 0 {
@@ -471,16 +479,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "H":
 			m.pens = nil
 		case "p":
-			root := ""
-			if m.root == "" {
-				var err error
-				root, err = scopeRoot(".")
+			switch {
+			case m.root != "":
+				m.root = ""
+			case len(m.projects) > 0:
+				m.projects = nil
+			default:
+				root, err := scopeRoot(".")
 				if err != nil {
 					m.status = err.Error()
 					return m, nil
 				}
+				m.root = root
 			}
-			m.root = root
 			m.status = ""
 			m.revision++
 			return m, m.requestQuery()
@@ -498,12 +509,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.transcriptOffset = 0
 		case "t":
 			m.toolsOpen = !m.toolsOpen
-		case "?":
-			m.help = !m.help
-			if m.help {
-				m.helpAnim = helpFrames
-				return m, helpTick()
-			}
 		case "r": // sync the index, then re-run the search
 			if m.syncing {
 				return m, nil
@@ -621,15 +626,15 @@ func keyText(k tea.KeyPressMsg) string {
 
 func (m model) pageHeight() int {
 	extra := 0
-	if m.status != "" && m.prompt == promptNone {
+	if m.status != "" && m.prompt == promptNone && !m.help {
 		extra = 1
 	}
 	return max(1, m.height-m.chromeRows()-m.listHeight()-extra)
 }
 
-// headerRows counts query, optional highlights, and a blank row.
+// headerRows counts query, optional filters, and a blank row.
 func (m model) headerRows() int {
-	if len(m.pens) > 0 {
+	if m.harness != "" && m.harness != "all" || m.root != "" || len(m.projects) > 0 || m.rng.active() || len(m.pens) > 0 {
 		return 3
 	}
 	return 2
@@ -656,9 +661,9 @@ func (m model) color(s, c string) string {
 func (m model) agentGlyph(h string) string {
 	c, ok := m.pal.agents[h]
 	if !ok {
-		c = m.pal.muted
+		c.fg = m.pal.muted
 	}
-	return m.color(agentMark(h), c)
+	return m.color(agentMark(h), c.fg)
 }
 func agentMark(h string) string {
 	if h := findHarness(h); h != nil {

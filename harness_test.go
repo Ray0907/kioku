@@ -50,9 +50,10 @@ func TestHarnessRegistryDrivesInterfaces(t *testing.T) {
 	m := newModel(nil, "", "all", nil, nil, false, 50, false)
 	m.help, m.focus, m.width, m.height = true, false, 100, 35
 	view := ansi.Strip(m.View().Content)
-	if !strings.Contains(view, "f fixture") || strings.Contains(view, "a agy") {
+	if !strings.Contains(view, "f fixture") || strings.Contains(view, "✦ agy") {
 		t.Error("TUI help does not follow the harness table")
 	}
+	m = press(m, "esc")
 	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
 	if got := next.(model).harness; got != "fixture" {
 		t.Errorf("shift+tab = %q, want fixture", got)

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- TUI: filters and highlights show as removable chips below the search box; `p` scopes to the current project or clears an active project filter.
+- TUI: results are grouped by session, with matching messages listed under their session row.
+- TUI: the search box shows clearer focus, and `?` types into a focused query and opens the key list from results.
+- TUI: the transcript is tighter and `n`/`N` step through hits with a `hit N/M` count in the title.
+- TUI: the `?` popup uses two columns from 71 columns wide and one below, and fully covers the transcript scrollbar behind it.
+
 ## v0.15.3 - 2026-11-20
 
 ### Changed

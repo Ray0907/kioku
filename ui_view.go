@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -50,24 +49,24 @@ func (m model) View() tea.View {
 	if m.fresh > 0 && m.progress == "" {
 		count += fmt.Sprintf(" · %d new · r refreshes", m.fresh)
 	}
-	if m.root != "" {
-		count = displayInline(filepath.Base(m.root)) + " · " + count
-	} else if m.rng.active() {
-		count = m.rng.label() + " · " + count
-	}
 	strong := lipgloss.NewStyle().Bold(true)
-	q := "  " + strong.Foreground(lipgloss.Color(m.pal.muted)).Render("kioku") + " ▸ "
-	right := m.color(clip(count, max(0, w-displayWidth(q)-4)), m.pal.muted)
-	inputW := max(0, w-displayWidth(q)-displayWidth(right)-2)
-	p := []rune(m.q)[:m.caret()]
-	shownInput, caretX := queryWindow(displayInline(string(p)), displayInline(string([]rune(m.q)[m.caret():])), max(0, inputW-2))
-	b.WriteString(m.bgRow(q+pad(strong.Render(shownInput), inputW)+right+"  ", w, m.pal.surf) + "\n")
-	if len(m.pens) > 0 {
-		ps := m.color("  highlights ", m.pal.muted)
-		for _, p := range m.pens {
-			ps += lipgloss.NewStyle().Background(lipgloss.Color(m.pal.pens[p.color])).Render(" "+displayInline(p.word)+" ") + " "
-		}
-		b.WriteString(clipANSI(ps, w-2) + "\n")
+	lead, brand := "  ", strong.Foreground(lipgloss.Color(m.pal.muted)).Render("kioku")
+	if m.focus {
+		lead = strong.Foreground(lipgloss.Color(m.pal.acc)).Render("▎") + " "
+		brand = strong.Render("kioku")
+	}
+	q := lead + brand + m.color(" ▸ ", m.pal.muted)
+	right := m.color(clip(count, w-displayWidth(q)-8), m.pal.muted)
+	inputW := w - displayWidth(q) - displayWidth(right) - 2
+	runes := []rune(m.q)
+	shownInput, caretX := queryWindow(displayInline(string(runes[:m.caret()])), displayInline(string(runes[m.caret():])), inputW-2)
+	input := strong.Render(shownInput)
+	if m.focus && m.q == "" {
+		input = " " + m.color(clip(`Search messages… (space AND · "phrase" · -exclude)`, inputW-2), m.pal.dim)
+	}
+	b.WriteString(m.bgRow(q+pad(input, inputW)+right+"  ", w, m.pal.surf) + "\n")
+	if m.headerRows() > 2 {
+		b.WriteString(m.filterLine() + "\n")
 	}
 	b.WriteByte('\n')
 	listH := m.listHeight()
@@ -88,22 +87,35 @@ func (m model) View() tea.View {
 			}
 			x := m.rows[idx]
 			selected := idx == m.sel
-			const pjW, ageW = 13, 4
-			sw := max(1, w-5-pjW-ageW-2)
+			const ageW = 4
+			pjW := min(16, w-23)
+			if w >= 100 {
+				pjW = 17
+			}
+			sw := w - 5 - pjW - ageW - 2
+			grouped := i > 0 && x.UID != "" && m.rows[idx-1].UID == x.UID
 			raw := x.Snippet
 			if browse {
 				if topic := m.topics[x.UID]; topic != "" {
 					raw = topic
 				}
 			}
-			sn := clip(tidySnippet(displayInline(raw)), max(1, sw-4))
+			prefix := ""
+			if x.Role == "tool" && !browse {
+				prefix = "tool · "
+			}
+			sn := clip(tidySnippet(displayInline(raw)), sw-2-displayWidth(prefix))
 			cursor := " "
 			agent := m.agentGlyph(x.Harness)
 			metaColor := m.pal.muted
 			if m.focus && !selected {
 				metaColor = m.pal.dim
 			}
-			project := m.color(clip(displayInline(x.Project), pjW-1), metaColor)
+			projectName := ansi.Truncate(displayInline(x.Project), pjW-1, "…")
+			if grouped {
+				projectName = "·"
+			}
+			project := m.color(projectName, metaColor)
 			when := m.color(fmt.Sprintf("%*s", ageW, age(x.TS)), metaColor)
 			band := selected && !m.focus // with the cursor in the query box the list only carries a quiet ›
 			if selected {
@@ -111,14 +123,19 @@ func (m model) View() tea.View {
 				if band {
 					cursor = strong.Foreground(lipgloss.Color(m.pal.acc)).Render("▎")
 				}
-				agent = strong.Foreground(lipgloss.Color(m.pal.agents[x.Harness])).Render(agentMark(x.Harness))
-				project = strong.Render(clip(displayInline(x.Project), pjW-1))
+				agent = strong.Render(agent)
+				project = strong.Render(projectName)
 				when = strong.Render(fmt.Sprintf("%*s", ageW, age(x.TS)))
+			}
+			if grouped {
+				agent = m.color("└", m.pal.dim)
+				project = m.color(projectName, m.pal.dim)
 			}
 			body := m.paint(sn, true, selected)
 			if m.focus && !selected {
 				body = m.dimUnstyled(body)
 			}
+			body = m.color(prefix, m.pal.dim) + body
 			row := " " + cursor + " " + agent + " " + pad(body, sw) + pad(project, pjW) + when + "  "
 			if band {
 				row = m.selectionRow(row, w)
@@ -155,11 +172,7 @@ func (m model) View() tea.View {
 		if m.status != "" {
 			b.WriteString("  " + strong.Render(clip(displayInline(m.status), w-4)) + "\n")
 		}
-		if m.focus {
-			b.WriteString(m.keys(w, "enter", "resume", "↓", "list", "tab", "agent", "ctrl+w", "word", "ctrl+u", "clear"))
-		} else {
-			b.WriteString(m.keys(w, "enter", "resume", "/", "search", "O", "outline", "t", "tools", "r", "sync", "?", "help", "pgup/pgdown", "scroll"))
-		}
+		b.WriteString(m.footer(w))
 	}
 	rendered := strings.Split(b.String(), "\n")
 	for i := range rendered {
@@ -174,7 +187,7 @@ func (m model) View() tea.View {
 		cur.Shape = tea.CursorBar
 		cur.Blink = true
 		v.Cursor = cur
-	} else if m.focus {
+	} else if m.focus && !m.help {
 		cur := tea.NewCursor(min(w-1, displayWidth(q)+caretX), 0)
 		cur.Shape = tea.CursorBar
 		cur.Blink = true
@@ -183,26 +196,46 @@ func (m model) View() tea.View {
 	return v
 }
 
-// keys renders bold keys and muted labels, dropping trailing pairs that do not fit.
-func (m model) keys(w int, pairs ...string) string {
-	maxW := w - 4
-	parts := make([]string, 0, len(pairs)/2)
-	used := 0
-	for i := 0; i+1 < len(pairs); i += 2 {
-		cap := lipgloss.NewStyle().Bold(true).Background(lipgloss.Color(m.pal.key)).Render(" " + pairs[i] + " ")
-		item := cap + " " + m.color(pairs[i+1], m.pal.muted)
-		iw := displayWidth(item)
-		sep := 0
-		if len(parts) > 0 {
-			sep = 2
+func (m model) footer(w int) string {
+	pairs := []string{"enter", "resume"}
+	hint := ""
+	if m.focus {
+		pairs = append(pairs, "↓", "results", "tab", "agent", "ctrl+w", "del word")
+	} else {
+		pairs = append(pairs, "/", "search")
+		if _, total := m.hitPosition(); total > 1 {
+			pairs = append(pairs, "n/N", "next hit")
 		}
-		if len(parts) > 0 && used+sep+iw > maxW {
+		pairs = append(pairs, "tab", "agent", "p", "proj", "d", "range", "O", "outline")
+		if len(m.rows) > 0 && m.rows[m.sel].ResumeCmd != "" && w >= 54 {
+			hint = m.color("▸ "+ansi.Truncate(displayInline(m.rows[m.sel].ResumeCmd), 24, "…"), m.pal.dim)
+		}
+	}
+	style := lipgloss.NewStyle().Bold(true).Background(lipgloss.Color(m.pal.key))
+	key := func(k, label string) string {
+		return style.Render(" "+k+" ") + " " + m.color(label, m.pal.muted)
+	}
+	help := ""
+	if !m.focus {
+		help = key("?", "help")
+	}
+	left := "  "
+	end := w - 2 - displayWidth(hint)
+	if hint != "" {
+		end -= 2
+	}
+	for i := 0; i < len(pairs); i += 2 {
+		item := key(pairs[i], pairs[i+1]) + "  "
+		if displayWidth(left)+displayWidth(item)+displayWidth(help) > end {
 			break
 		}
-		parts = append(parts, item)
-		used += sep + iw
+		left += item
 	}
-	return "  " + clipANSI(strings.Join(parts, "  "), maxW)
+	left += help
+	if hint == "" {
+		return left
+	}
+	return pad(left, end+2) + hint + "  "
 }
 func clipANSI(s string, w int) string {
 	if w <= 0 {
@@ -245,8 +278,13 @@ func (m model) bgRow(s string, w int, hex string) string {
 	if bg == "" {
 		return pad(s, w)
 	}
-	// Inner foreground/bold styles reset backgrounds; restore the band after each SGR.
-	return bg + sgrCode.ReplaceAllStringFunc(pad(s, w), func(code string) string { return code + bg }) + "\x1b[49m"
+	// Restore the band after a style reset, not over the hit/pen's own background.
+	return bg + sgrCode.ReplaceAllStringFunc(pad(s, w), func(code string) string {
+		if code == "\x1b[m" || code == "\x1b[0m" || code == "\x1b[49m" {
+			return code + bg
+		}
+		return code
+	}) + "\x1b[49m"
 }
 func hasHitRow(hitRows map[int]int, r int) bool {
 	_, ok := hitRows[r]
@@ -333,6 +371,10 @@ func (m model) emptyHints() []string {
 		out = append(out, "No message in this date range. Press D to clear it.")
 	case toFTS(m.q) != "":
 		out = append(out, "No message contains all of these words.")
+	case m.headerRows() > 2:
+		out = append(out, "No sessions match the current filters.")
+	default:
+		out = append(out, "No recent sessions.")
 	}
 	var positive, phrases int
 	var negatives []string
@@ -359,7 +401,7 @@ func (m model) emptyHints() []string {
 	if m.rng.active() && toFTS(m.q) != "" {
 		out = append(out, "Press d to widen the date range.")
 	}
-	if m.root != "" {
+	if m.root != "" || len(m.projects) > 0 {
 		out = append(out, "Press p to remove the project scope.")
 	}
 	if m.harness != "" && m.harness != "all" {

@@ -163,9 +163,12 @@ func TestHelpFooterAt80Columns(t *testing.T) {
 		view := ansi.Strip(m.View().Content)
 		lines := strings.Split(view, "\n")
 		footer := lines[len(lines)-1]
-		pairs := []string{"/", "search", "t", "tools", "r", "sync", "?", "help"}
+		pairs := []string{"/", "search", "tab", "agent", "p", "proj", "d", "range", "?", "help"}
 		if focus {
-			pairs = []string{"ctrl+w", "word", "ctrl+u", "clear"}
+			pairs = []string{"↓", "results", "ctrl+w", "del", "word"}
+			if strings.Contains(footer, "?") {
+				t.Errorf("search footer advertises ? even though it types into the query: %q", footer)
+			}
 		}
 		for _, pair := range pairs {
 			if !regexp.MustCompile(`(^|\s)` + regexp.QuoteMeta(pair) + `(\s|$)`).MatchString(footer) {

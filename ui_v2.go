@@ -49,20 +49,15 @@ func (m model) onFocus(in bool) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// helpBox places the help popup: centred, as large as its text, never larger than the screen.
-func helpBox(inner, lines, w, h int) (x0, y0, boxW, boxH int) {
-	boxW, boxH = min(w, inner+4), min(h, lines+2)
-	return (w - boxW) / 2, max(0, (h-boxH)/2), boxW, boxH
+// helpBounds is shared by the renderer and mouse hit-testing, including during the reveal.
+func (m model) helpBounds(w, h, lines int) rect {
+	shown := lines - lines*m.helpAnim/(helpFrames+1)
+	boxW, boxH := helpBoxWidth(w), min(h, max(shown, 1)+2)
+	return rect{x: (w - boxW) / 2, y: (h - boxH) / 2, w: boxW, h: boxH}
 }
 
-// helpRect is the screen area the popup covers, for click handling.
 func (m model) helpRect() rect {
-	lines, inner := helpLines(), 0
-	for _, l := range lines {
-		inner = max(inner, displayWidth(l))
-	}
-	x0, y0, bw, bh := helpBox(inner, len(lines), m.width, m.height)
-	return rect{x: x0, y: y0, w: bw, h: bh}
+	return m.helpBounds(m.width, m.height, len(m.helpRows(m.width)))
 }
 
 // The popup grows open over helpFrames short ticks so it reads as arriving rather than blinking in.

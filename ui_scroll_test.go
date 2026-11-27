@@ -220,13 +220,11 @@ func TestTranscriptWheelUpFromLastMessage(t *testing.T) {
 func TestTranscriptScrollHelp(t *testing.T) {
 	m := scrollModel()
 	m.width = 180
-	for _, help := range []bool{false, true} {
-		m.help = help
-		view := ansi.Strip(m.View().Content)
-		for _, key := range []string{"pgup", "pgdown"} {
-			if !strings.Contains(view, key) {
-				t.Fatalf("help=%t missing %s:\n%s", help, key, view)
-			}
+	m.help = true
+	view := ansi.Strip(m.View().Content)
+	for _, key := range []string{"pgup", "pgdown"} {
+		if !strings.Contains(view, key) {
+			t.Fatalf("help missing %s:\n%s", key, view)
 		}
 	}
 }

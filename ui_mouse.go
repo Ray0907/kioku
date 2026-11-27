@@ -44,33 +44,24 @@ func (m model) mouseUpdate(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if !m.mouse {
 		return m, nil
 	}
+	if m.help {
+		if x, ok := msg.(tea.MouseClickMsg); ok && x.Button == tea.MouseLeft && !m.helpRect().contains(x.X, x.Y) {
+			m.help = false
+		}
+		return m, nil
+	}
 	l := m.layout()
 	switch x := msg.(type) {
 	case tea.MouseClickMsg:
 		if x.Button != tea.MouseLeft {
 			return m, nil
 		}
-		if m.help { // a click outside the help popup closes it; inside does nothing
-			if !m.helpRect().contains(x.X, x.Y) {
-				m.help = false
-			}
-			return m, nil
-		}
 		if l.header.contains(x.X, x.Y) {
 			m.focus = true
 			return m, nil
 		}
-		if l.pens.contains(x.X, x.Y) {
-			col := len("  highlights ")
-			for i, p := range m.pens {
-				w := displayWidth(displayInline(p.word)) + 2
-				if x.X >= col && x.X < col+w {
-					m.pens = append(m.pens[:i], m.pens[i+1:]...)
-					break
-				}
-				col += w + 1
-			}
-			return m, nil
+		if l.filters.contains(x.X, x.Y) && m.prompt == promptNone {
+			return m.clearFilterAt(x.X)
 		}
 		if l.list.contains(x.X, x.Y) {
 			i := m.offset + x.Y - l.list.y
@@ -80,6 +71,10 @@ func (m model) mouseUpdate(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 				return m, m.requestLoad()
 			}
 			m.focus = false
+			return m, nil
+		}
+		if m.outlineRect().contains(x.X, x.Y) && m.prompt == promptNone {
+			m.focus, m.outline, m.transcriptOffset = false, false, 0
 			return m, nil
 		}
 		if l.titleBar.contains(x.X, x.Y) {
@@ -109,6 +104,13 @@ func (m model) mouseUpdate(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			m.drag = dragRail
 			m.scrubRail(ry)
 			return m, nil
+		}
+		if l.transcript.contains(x.X, x.Y) && m.prompt == promptNone {
+			m.pageLines(m.width)
+			y := x.Y - l.transcript.y
+			if y < len(m.rail.messageRows) && m.rail.messageRows[y] >= 0 {
+				m.cursor, m.transcriptOffset = m.rail.messageRows[y], 0
+			}
 		}
 		m.focus = false
 	case tea.MouseMotionMsg:
