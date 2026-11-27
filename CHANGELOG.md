@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.16.2 - 2026-11-27
+
+### Fixed
+- CI: two TUI end-to-end checks still expected the pre-0.16 layout; updated them. v0.16.1 failed its release build on them.
+
 ## v0.16.1 - 2026-11-27
 
 ### Fixed

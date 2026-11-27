@@ -109,7 +109,7 @@ PY
 tmux new-session -d -x 120 -y 40 -s "htool-$$" "cd '$ROOT' && HOME='$OPHOME' PATH='$PATH' STUBLOG='$STUBLOG' KIOKU_INDEX='$OPHOME/tui.db' KIOKU_THEME=light TERM=xterm-256color exec ./kioku --harness opencode oceditedtoken" 2>/dev/null
 tmux set-option -t "htool-$$" remain-on-exit on 2>/dev/null
 sleep 1; tmux capture-pane -t "htool-$$" -p > "$SCREENS/opencode-tui.txt" 2>&1
-grep -q '▢ opencode demo · oceditedtoken' "$SCREENS/opencode-tui.txt" && grep -q '1 messages' "$SCREENS/opencode-tui.txt" || opencode_ok=0
+grep -Eq '▢ opencode · opencode demo · .*oceditedtoken' "$SCREENS/opencode-tui.txt" && grep -q '1 messages' "$SCREENS/opencode-tui.txt" || opencode_ok=0
 tmux send-keys -t "htool-$$" Tab; sleep .3; capture=$(tmux capture-pane -t "htool-$$" -p 2>&1)
 grep -q '0 messages' <<<"$capture" || opencode_ok=0
 tmux send-keys -t "htool-$$" Tab; sleep .3; capture=$(tmux capture-pane -t "htool-$$" -p 2>&1)
@@ -194,7 +194,7 @@ errors=[]
 if len(rows)!=3: errors.append(f'expected 3 hit rows, found {len(rows)}')
 for row in rows:
  agent=row[3]
- snippet=row[5:120-19].rstrip()
+ snippet=row[5:].split('  ')[0].rstrip()
  if not snippet.endswith('…'): errors.append(f'{agent} hit row has no trailing ellipsis: {row}')
  token='supercalifragilisticexpialidocious'
  if token[:12] in snippet and token not in snippet: errors.append(f'{agent} row cuts Latin token: {row}')
